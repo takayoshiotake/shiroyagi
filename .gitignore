@@ -1,0 +1,5 @@
+secrets/dev/*
+!secrets/dev/README.md
+.DS_Store
+*.log
+tmp/

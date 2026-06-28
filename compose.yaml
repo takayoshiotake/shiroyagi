@@ -1,0 +1,63 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      APP_ENV: development
+
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: webmail
+      DATABASE_USER: webmail
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+
+      MASTER_KEY_FILE: /run/secrets/master_key
+
+      OIDC_ISSUER: http://keycloak:8080/realms/dev
+      OIDC_CLIENT_ID: webmail
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      OIDC_REDIRECT_URI: http://localhost:8080/callback
+
+      IMAP_HOST: dovecot
+      IMAP_PORT: "993"
+      IMAP_TLS: "true"
+
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_TLS: "false"
+    secrets:
+      - postgres_password
+      - master_key
+      - oidc_client_secret
+    networks:
+      - app
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: webmail
+      POSTGRES_USER: webmail
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    secrets:
+      - postgres_password
+    networks:
+      - app
+
+networks:
+  app:
+
+volumes:
+  postgres_data:
+
+secrets:
+  postgres_password:
+    file: ./secrets/dev/postgres_password
+  master_key:
+    file: ./secrets/dev/master_key
+  oidc_client_secret:
+    file: ./secrets/dev/oidc_client_secret

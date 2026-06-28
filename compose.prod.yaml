@@ -1,0 +1,24 @@
+services:
+  web:
+    environment:
+      APP_ENV: production
+      OIDC_ISSUER: https://auth.example.com/realms/mail
+      OIDC_REDIRECT_URI: https://mail.example.com/callback
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
