@@ -10,5 +10,4 @@ Required secrets:
 secrets/dev/postgres_password
 secrets/dev/master_key
 secrets/dev/oidc_client_secret
-secrets/dev/keycloak_admin_password
 ```
