@@ -17,7 +17,7 @@ services:
       MASTER_KEY_FILE: /run/secrets/master_key
 
       OIDC_ISSUER: http://keycloak:8080/realms/dev
-      OIDC_CLIENT_ID: webmail
+      OIDC_CLIENT_ID: shiroyagi
       OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
       OIDC_REDIRECT_URI: http://localhost:8080/callback
 
