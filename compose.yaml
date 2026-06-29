@@ -14,7 +14,7 @@ services:
       DATABASE_USER: shiroyagi
       DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
 
-      MASTER_KEY_FILE: /run/secrets/master_key
+      MAIL_ACCOUNT_KEK_FILE: /run/secrets/mail_account_kek
 
       OIDC_ISSUER: http://keycloak:8080/realms/dev
       OIDC_CLIENT_ID: shiroyagi
@@ -30,7 +30,7 @@ services:
       SMTP_TLS: "false"
     secrets:
       - postgres_password
-      - master_key
+      - mail_account_kek
       - oidc_client_secret
     networks:
       - app
@@ -57,7 +57,7 @@ volumes:
 secrets:
   postgres_password:
     file: ./secrets/dev/postgres_password
-  master_key:
-    file: ./secrets/dev/master_key
+  mail_account_kek:
+    file: ./secrets/dev/mail_account_kek
   oidc_client_secret:
     file: ./secrets/dev/oidc_client_secret

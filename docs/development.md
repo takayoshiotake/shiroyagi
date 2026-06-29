@@ -8,6 +8,6 @@ Required secrets:
 
 ```text
 secrets/dev/postgres_password
-secrets/dev/master_key
+secrets/dev/mail_account_kek
 secrets/dev/oidc_client_secret
 ```
