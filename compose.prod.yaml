@@ -3,7 +3,7 @@ services:
     environment:
       APP_ENV: production
       OIDC_ISSUER: https://auth.example.com/realms/mail
-      OIDC_REDIRECT_URI: https://mail.example.com/callback
+      OIDC_REDIRECT_URI: https://mail.example.com/auth/callback
 
   caddy:
     image: caddy:2

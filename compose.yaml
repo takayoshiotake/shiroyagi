@@ -19,7 +19,7 @@ services:
       OIDC_ISSUER: http://keycloak:8080/realms/dev
       OIDC_CLIENT_ID: shiroyagi
       OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
-      OIDC_REDIRECT_URI: http://localhost:8080/callback
+      OIDC_REDIRECT_URI: http://localhost:8080/auth/callback
 
       IMAP_HOST: dovecot
       IMAP_PORT: "993"
