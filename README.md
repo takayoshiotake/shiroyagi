@@ -25,6 +25,19 @@ realm, `shiroyagi` OIDC client, and `dev` user are created from
 The development app login is `dev` / `dev`. The Keycloak admin console login
 is `admin` / `admin`.
 
+## Development layout
+
+```mermaid
+flowchart LR
+  browser[Browser] --> web[Webmail :8080]
+  web --> postgres[(PostgreSQL)]
+  web --> dovecot[Dovecot IMAP]
+  web --> mailpit[Mailpit SMTP]
+  web --> keycloak[Keycloak OIDC :8081]
+  browser --> keycloak
+  browser --> mailpitUI[Mailpit UI :8025]
+```
+
 URLs:
 
 - Web: http://localhost:8080
