@@ -9,7 +9,7 @@ Create dev secret files first:
 ```bash
 mkdir -p secrets/dev
 printf 'shiroyagi' > secrets/dev/postgres_password
-printf 'dev-master-key-32bytes-change-me!!' > secrets/dev/master_key
+openssl rand 32 > secrets/dev/master_key
 printf 'dev-oidc-client-secret' > secrets/dev/oidc_client_secret
 printf 'admin' > secrets/dev/keycloak_admin_password
 ```
