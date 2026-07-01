@@ -1,4 +1,4 @@
-# Webmail Project
+# Shiroyagi
 
 Self-hosted webmail for on-premise mail servers.
 
@@ -19,6 +19,17 @@ Then run:
 podman compose -f compose.yaml -f compose.dev.yaml up
 ```
 
+To run only the Go app locally against the development services:
+
+```bash
+OIDC_ISSUER=http://localhost:8081/realms/dev \
+OIDC_BROWSER_ISSUER=http://localhost:8081/realms/dev \
+OIDC_CLIENT_ID=shiroyagi \
+OIDC_CLIENT_SECRET_FILE=secrets/dev/oidc_client_secret \
+OIDC_REDIRECT_URI=http://localhost:8080/auth/callback \
+go run ./cmd/shiroyagi
+```
+
 Keycloak imports the development realm automatically on startup. The `dev`
 realm, `shiroyagi` OIDC client, and `dev` user are created from
 `keycloak/realms/dev-realm.json`.
@@ -29,7 +40,7 @@ is `admin` / `admin`.
 
 ```mermaid
 flowchart LR
-  browser[Browser] --> web[Webmail :8080]
+  browser[Browser] --> web[Shiroyagi :8080]
   web --> postgres[(PostgreSQL)]
   web --> dovecot[Dovecot IMAP]
   web --> mailpit[Mailpit SMTP]
@@ -44,8 +55,8 @@ URLs:
 - Keycloak: http://localhost:8081
 - Mailpit: http://localhost:8025
 
-Manual OIDC login check:
+Login check:
 
 ```text
-http://localhost:8081/realms/dev/protocol/openid-connect/auth?client_id=shiroyagi&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fauth%2Fcallback&response_type=code&scope=openid
+http://localhost:8080/login
 ```

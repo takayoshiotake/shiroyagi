@@ -6,8 +6,6 @@ services:
     depends_on:
       - postgres
     environment:
-      APP_ENV: development
-
       DATABASE_HOST: postgres
       DATABASE_PORT: "5432"
       DATABASE_NAME: shiroyagi
@@ -17,6 +15,7 @@ services:
       MAIL_ACCOUNT_KEK_FILE: /run/secrets/mail_account_kek
 
       OIDC_ISSUER: http://keycloak:8080/realms/dev
+      OIDC_BROWSER_ISSUER: http://localhost:8081/realms/dev
       OIDC_CLIENT_ID: shiroyagi
       OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
       OIDC_REDIRECT_URI: http://localhost:8080/auth/callback
