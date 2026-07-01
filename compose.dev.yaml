@@ -14,7 +14,7 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
     volumes:
-      - ./keycloak/realms:/opt/keycloak/data/import:ro
+      - ./dev/keycloak/realms:/opt/keycloak/data/import:ro
     networks:
       - app
 
