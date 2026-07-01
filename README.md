@@ -32,7 +32,7 @@ go run ./cmd/shiroyagi
 
 Keycloak imports the development realm automatically on startup. The `dev`
 realm, `shiroyagi` OIDC client, and `dev` user are created from
-`dev/keycloak/realms/dev-realm.json`.
+`dev/keycloak/realm.json`.
 The development app login is `dev` / `dev`. The Keycloak admin console login
 is `admin` / `admin`.
 
