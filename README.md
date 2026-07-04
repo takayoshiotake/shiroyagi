@@ -58,5 +58,5 @@ URLs:
 Login check:
 
 ```text
-http://localhost:8080/login
+http://localhost:8080/auth/login
 ```

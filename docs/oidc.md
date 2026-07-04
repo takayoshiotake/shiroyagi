@@ -10,14 +10,14 @@ Only explicitly configured issuers are allowed.
 
 Shiroyagi uses short-lived cookies during the OIDC authorization code flow:
 
-- `shiroyagi_oauth_state`: random `state` value created at `/login` and
+- `shiroyagi_oauth_state`: random `state` value created at `/auth/login` and
   checked at `/auth/callback` to prevent login CSRF.
-- `shiroyagi_oauth_nonce`: random `nonce` value created at `/login` and
+- `shiroyagi_oauth_nonce`: random `nonce` value created at `/auth/login` and
   checked against the ID token `nonce` claim at `/auth/callback`.
 - `shiroyagi_session`: Shiroyagi application session created after the ID
   token is verified.
-- `shiroyagi_force_login`: short-lived marker set by `/logout`; the next
-  `/login` adds `max_age=0` so Keycloak asks for credentials again without
+- `shiroyagi_force_login`: short-lived marker set by `/auth/logout`; the next
+  `/auth/login` adds `max_age=0` so Keycloak asks for credentials again without
   ending the broader Keycloak SSO session.
 
 The state and nonce cookies are deleted after a successful callback. The

@@ -34,9 +34,9 @@ func New(authClient *auth.Client, sessions *auth.SessionStore) *Server {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/login", s.handleLogin)
+	mux.HandleFunc("/auth/login", s.handleLogin)
 	mux.HandleFunc("/auth/callback", s.handleAuthCallback)
-	mux.HandleFunc("/logout", s.handleLogout)
+	mux.HandleFunc("/auth/logout", s.handleLogout)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintln(w, "ok")
 	})
@@ -58,7 +58,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 <head><meta charset="utf-8"><title>Shiroyagi</title></head>
 <body>
   <h1>Shiroyagi</h1>
-  <p><a href="/login">Sign in with Keycloak</a></p>
+  <p><a href="/auth/login">Sign in with Keycloak</a></p>
 </body>
 </html>`)
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 <body>
   <h1>Shiroyagi</h1>
   <p>Signed in as %s</p>
-  <p><a href="/logout">Sign out</a></p>
+  <p><a href="/auth/logout">Sign out</a></p>
 </body>
 </html>`, html.EscapeString(displayName))
 }
