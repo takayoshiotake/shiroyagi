@@ -31,6 +31,6 @@ docker compose -f compose.yaml -f compose.dev.yaml up
 
 - Never store plaintext mail passwords.
 - Use envelope encryption.
-- KEK is loaded from `/run/secrets/master_key`.
+- KEK is loaded from `/run/secrets/mail_account_kek`.
 - Do not log secrets or full JWTs.
 - Reject local auth in production.
