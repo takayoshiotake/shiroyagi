@@ -6,6 +6,17 @@ Production may use external Keycloak or any configured OIDC provider.
 
 Only explicitly configured issuers are allowed.
 
+## Routes
+
+- `/signin`: Shiroyagi sign-in page with a link to start OIDC login.
+- `/auth/login`: starts the OIDC authorization code flow and redirects to
+  Keycloak.
+- `/auth/callback`: receives the authorization code from Keycloak.
+- `/auth/logout`: clears the Shiroyagi application session.
+
+Application pages require a Shiroyagi session. Requests without a valid session
+are redirected to `/signin`.
+
 ## Login cookies
 
 Shiroyagi uses short-lived cookies during the OIDC authorization code flow:
