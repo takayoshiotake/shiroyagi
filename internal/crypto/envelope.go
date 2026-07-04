@@ -11,8 +11,8 @@ import (
 
 const (
 	BlobVersion byte = 1
-	KeySize          = 32
-	NonceSize        = 12
+	KeySize     int  = 32
+	NonceSize   int  = 12
 )
 
 var (
