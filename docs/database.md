@@ -110,7 +110,7 @@ IMAP passwords are encrypted with envelope encryption.
 - KEK is loaded from `/run/secrets/mail_account_kek`
 - KEK is never stored in PostgreSQL
 
-`encrypted_password_version` is intentionally not stored. AES-256-GCM is the only supported encryption format for now. If a future format change becomes necessary, the encrypted blob can be versioned or migrated then.
+A separate encrypted password version column is intentionally not stored. AES-256-GCM is the only supported encryption format for now. If a future format change becomes necessary, the encrypted blob can be versioned or migrated then.
 
 ## mail_account_settings
 
