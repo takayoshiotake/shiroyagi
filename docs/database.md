@@ -4,8 +4,28 @@ Shiroyagi separates application users from mail accounts.
 
 - `users`: Shiroyagi application users authenticated by Keycloak/OIDC
 - `user_preferences`: user-wide UI and behavior preferences
-- `mail_accounts`: IMAP/SMTP account connection credentials
+- `mail_accounts`: IMAP account connection credentials
 - `mail_account_settings`: per-mail-account display and sending settings
+- `schema_migrations`: applied database migration versions
+
+## schema_migrations
+
+`schema_migrations` records migration files that have already been applied.
+
+Migration SQL files are embedded in the Shiroyagi binary from
+`internal/db/migrations`. On startup, Shiroyagi creates this table if needed,
+sorts the embedded `*.sql` files by name, applies files that are not recorded
+yet, and then inserts each applied filename as the migration version.
+
+```text
+version
+applied_at
+```
+
+### Columns
+
+- `version`: migration filename, such as `001_create_mail_accounts.sql`
+- `applied_at`: time the migration was recorded
 
 ## users
 

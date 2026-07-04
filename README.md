@@ -27,6 +27,11 @@ OIDC_BROWSER_ISSUER=http://localhost:8081/realms/dev \
 OIDC_CLIENT_ID=shiroyagi \
 OIDC_CLIENT_SECRET_FILE=secrets/dev/oidc_client_secret \
 OIDC_REDIRECT_URI=http://localhost:8080/auth/callback \
+DATABASE_HOST=localhost \
+DATABASE_PORT=5432 \
+DATABASE_NAME=shiroyagi \
+DATABASE_USER=shiroyagi \
+DATABASE_PASSWORD_FILE=secrets/dev/postgres_password \
 go run ./cmd/shiroyagi
 ```
 
