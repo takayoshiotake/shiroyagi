@@ -20,11 +20,13 @@ const (
 
 type mailAccountForm struct {
 	EmailAddress string
+	HasIMAP      bool
 	IMAPHost     string
 	IMAPPort     int
 	IMAPSecurity string
 	IMAPUsername string
 	IMAPPassword string
+	HasSMTP      bool
 	SMTPHost     string
 	SMTPPort     int
 	SMTPSecurity string
@@ -52,14 +54,35 @@ func (s *Server) handleMailAccount(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case "edit":
-		switch r.Method {
-		case http.MethodGet:
-			s.handleEditMailAccount(w, r, id)
-		case http.MethodPost:
-			s.handleUpdateMailAccount(w, r, id)
-		default:
+		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
+		s.handleEditMailAccount(w, r, id)
+	case "imap":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleSaveIMAPAccount(w, r, id)
+	case "smtp":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleSaveSMTPAccount(w, r, id)
+	case "delete-imap":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleDeleteIMAPAccount(w, r, id)
+	case "delete-smtp":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleDeleteSMTPAccount(w, r, id)
 	case "delete":
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -140,24 +163,26 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
 <body>
   <h1>Edit mail account</h1>
 
-  <form method="post" action="/mail-accounts/%s/edit">
-    <p>
-      <strong>Email address</strong><br>
-      %s
-    </p>
+  <p>
+    <strong>Email address</strong><br>
+    %s
+  </p>
+
+  <h2>IMAP settings</h2>
+  <form method="post" action="/mail-accounts/%s/imap">
     <p>
       <label>IMAP Host<br>
-        <input name="imap_host" value="%s" required>
+        <input name="imap_host" value="%s">
       </label>
     </p>
     <p>
       <label>IMAP Port<br>
-        <input name="imap_port" value="%d" required>
+        <input name="imap_port" value="%s">
       </label>
     </p>
     <p>
       <label>IMAP protocol<br>
-        <select name="imap_security" required>
+        <select name="imap_security">
           <option value="imaps"%s>IMAPS</option>
           <option value="imap"%s>IMAP</option>
         </select>
@@ -165,7 +190,7 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
     </p>
     <p>
       <label>IMAP username<br>
-        <input name="imap_username" value="%s" required>
+        <input name="imap_username" value="%s">
       </label>
     </p>
     <p>
@@ -173,19 +198,27 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
         <input type="password" name="imap_password">
       </label>
     </p>
+    <button type="submit">Save IMAP</button>
+  </form>
+  <form method="post" action="/mail-accounts/%s/delete-imap">
+    <button type="submit">Remove IMAP</button>
+  </form>
+
+  <h2>SMTP settings</h2>
+  <form method="post" action="/mail-accounts/%s/smtp">
     <p>
       <label>SMTP Host<br>
-        <input name="smtp_host" value="%s" required>
+        <input name="smtp_host" value="%s">
       </label>
     </p>
     <p>
       <label>SMTP Port<br>
-        <input name="smtp_port" value="%d" required>
+        <input name="smtp_port" value="%s">
       </label>
     </p>
     <p>
       <label>SMTP protocol<br>
-        <select name="smtp_security" required>
+        <select name="smtp_security">
           <option value="starttls"%s>STARTTLS</option>
           <option value="smtps"%s>SMTPS</option>
           <option value="plain"%s>Plain</option>
@@ -194,7 +227,7 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
     </p>
     <p>
       <label>SMTP username<br>
-        <input name="smtp_username" value="%s" required>
+        <input name="smtp_username" value="%s">
       </label>
     </p>
     <p>
@@ -202,29 +235,35 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
         <input type="password" name="smtp_password">
       </label>
     </p>
-    <button type="submit">Save</button>
+    <button type="submit">Save SMTP</button>
+  </form>
+  <form method="post" action="/mail-accounts/%s/delete-smtp">
+    <button type="submit">Remove SMTP</button>
   </form>
 
   <form method="post" action="/mail-accounts/%s/delete">
-    <button type="submit">Delete</button>
+    <button type="submit">Delete mail account</button>
   </form>
 
   <p><a href="/mail-accounts">Back</a></p>
 </body>
 </html>`,
-		html.EscapeString(account.ID),
 		html.EscapeString(account.EmailAddress),
+		html.EscapeString(account.ID),
 		html.EscapeString(account.IMAPHost),
-		account.IMAPPort,
+		portValue(account.HasIMAP, account.IMAPPort),
 		selected(account.IMAPSecurity == "imaps"),
 		selected(account.IMAPSecurity == "imap"),
 		html.EscapeString(account.IMAPUsername),
+		html.EscapeString(account.ID),
+		html.EscapeString(account.ID),
 		html.EscapeString(account.SMTPHost),
-		account.SMTPPort,
+		portValue(account.HasSMTP, account.SMTPPort),
 		selected(account.SMTPSecurity == "starttls"),
 		selected(account.SMTPSecurity == "smtps"),
 		selected(account.SMTPSecurity == "plain"),
 		html.EscapeString(account.SMTPUsername),
+		html.EscapeString(account.ID),
 		html.EscapeString(account.ID),
 	)
 }
@@ -240,8 +279,8 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	form, ok := parseMailAccountForm(r, true)
-	if !ok {
+	emailAddress := r.FormValue("email_address")
+	if emailAddress == "" {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -255,8 +294,7 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO: Check IMAP connectivity before saving the account.
-	found, err := s.accounts.ExistsByUserAndEmail(r.Context(), session.Subject, form.EmailAddress)
+	found, err := s.accounts.ExistsByUserAndEmail(r.Context(), session.Subject, emailAddress)
 	if err != nil {
 		log.Printf("check mail account existence: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -267,7 +305,7 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := s.insertMailAccount(r, kek, session.Subject, form); err != nil {
+	if _, err := s.insertMailAccount(r, kek, session.Subject, mailAccountForm{EmailAddress: emailAddress}); err != nil {
 		log.Printf("insert mail account: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -276,13 +314,13 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
 }
 
-func (s *Server) handleUpdateMailAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request, id string) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	form, ok := parseMailAccountUpdateForm(r)
+	form, ok := parseIMAPForm(r)
 	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -299,10 +337,13 @@ func (s *Server) handleUpdateMailAccount(w http.ResponseWriter, r *http.Request,
 		http.NotFound(w, r)
 		return
 	}
+	if !account.HasIMAP && form.IMAPPassword == "" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
 
-	encryptedIMAPPassword := account.EncryptedIMAPPassword
-	encryptedSMTPPassword := account.EncryptedSMTPPassword
-	if form.IMAPPassword != "" || form.SMTPPassword != "" {
+	encryptedPassword := account.EncryptedIMAPPassword
+	if form.IMAPPassword != "" {
 		kek, err := os.ReadFile(s.mailCrypto.KEKFile)
 		if err != nil {
 			log.Printf("read mail account KEK: %v", err)
@@ -318,44 +359,101 @@ func (s *Server) handleUpdateMailAccount(w http.ResponseWriter, r *http.Request,
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		if form.IMAPPassword != "" {
-			encryptedIMAPPassword, err = decrypter.EncryptWithAAD([]byte(form.IMAPPassword), fieldAAD(session.Subject, account.ID, aadFieldIMAPPassword))
-			if err != nil {
-				log.Printf("encrypt imap password: %v", err)
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		}
-		if form.SMTPPassword != "" {
-			encryptedSMTPPassword, err = decrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(session.Subject, account.ID, aadFieldSMTPPassword))
-			if err != nil {
-				log.Printf("encrypt smtp password: %v", err)
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
+		encryptedPassword, err = decrypter.EncryptWithAAD([]byte(form.IMAPPassword), fieldAAD(session.Subject, account.ID, aadFieldIMAPPassword))
+		if err != nil {
+			log.Printf("encrypt imap password: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
 		}
 	}
 
-	if err := s.accounts.Update(r.Context(), mailaccount.Account{
+	if err := s.accounts.SaveIMAP(r.Context(), mailaccount.Account{
 		ID:                    account.ID,
 		UserID:                session.Subject,
+		HasIMAP:               true,
 		IMAPHost:              form.IMAPHost,
 		IMAPPort:              form.IMAPPort,
 		IMAPSecurity:          form.IMAPSecurity,
 		IMAPUsername:          form.IMAPUsername,
-		EncryptedIMAPPassword: encryptedIMAPPassword,
-		SMTPHost:              form.SMTPHost,
-		SMTPPort:              form.SMTPPort,
-		SMTPSecurity:          form.SMTPSecurity,
-		SMTPUsername:          form.SMTPUsername,
-		EncryptedSMTPPassword: encryptedSMTPPassword,
+		EncryptedIMAPPassword: encryptedPassword,
 	}); err != nil {
-		log.Printf("update mail account: %v", err)
+		log.Printf("save imap account: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
+	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
+}
+
+func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request, id string) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	form, ok := parseSMTPForm(r)
+	if !ok {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	session, _ := sessionFromContext(r.Context())
+	account, found, err := s.accounts.Get(r.Context(), session.Subject, id)
+	if err != nil {
+		log.Printf("get mail account: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+	if !account.HasSMTP && form.SMTPPassword == "" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	encryptedPassword := account.EncryptedSMTPPassword
+	if form.SMTPPassword != "" {
+		kek, err := os.ReadFile(s.mailCrypto.KEKFile)
+		if err != nil {
+			log.Printf("read mail account KEK: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		decrypter, err := crypto.OpenEnvelope(kek, crypto.Envelope{
+			WrappedDEK: account.WrappedDEK,
+			KEKVersion: account.KEKVersion,
+		}, envelopeAAD(session.Subject, account.ID))
+		if err != nil {
+			log.Printf("open mail account envelope: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		encryptedPassword, err = decrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(session.Subject, account.ID, aadFieldSMTPPassword))
+		if err != nil {
+			log.Printf("encrypt smtp password: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := s.accounts.SaveSMTP(r.Context(), mailaccount.Account{
+		ID:                    account.ID,
+		UserID:                session.Subject,
+		HasSMTP:               form.HasSMTP,
+		SMTPHost:              form.SMTPHost,
+		SMTPPort:              form.SMTPPort,
+		SMTPSecurity:          form.SMTPSecurity,
+		SMTPUsername:          form.SMTPUsername,
+		EncryptedSMTPPassword: encryptedPassword,
+	}); err != nil {
+		log.Printf("save smtp account: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
 }
 
 func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request, id string) {
@@ -369,50 +467,64 @@ func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
 }
 
-func parseMailAccountForm(r *http.Request, requirePassword bool) (mailAccountForm, bool) {
-	form, ok := parseMailAccountUpdateForm(r)
-	if !ok {
+func (s *Server) handleDeleteIMAPAccount(w http.ResponseWriter, r *http.Request, id string) {
+	session, _ := sessionFromContext(r.Context())
+	if err := s.accounts.DeleteIMAP(r.Context(), session.Subject, id); err != nil {
+		log.Printf("delete imap account: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
+}
+
+func (s *Server) handleDeleteSMTPAccount(w http.ResponseWriter, r *http.Request, id string) {
+	session, _ := sessionFromContext(r.Context())
+	if err := s.accounts.DeleteSMTP(r.Context(), session.Subject, id); err != nil {
+		log.Printf("delete smtp account: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
+}
+
+func parseIMAPForm(r *http.Request) (mailAccountForm, bool) {
+	form := mailAccountForm{
+		IMAPHost:     r.FormValue("imap_host"),
+		IMAPSecurity: r.FormValue("imap_security"),
+		IMAPUsername: r.FormValue("imap_username"),
+		IMAPPassword: r.FormValue("imap_password"),
+	}
+	imapPort, err := strconv.Atoi(r.FormValue("imap_port"))
+	if err != nil {
 		return mailAccountForm{}, false
 	}
-	form.EmailAddress = r.FormValue("email_address")
-	if form.EmailAddress == "" {
+	form.HasIMAP = true
+	form.IMAPPort = imapPort
+	if form.IMAPSecurity != "imaps" && form.IMAPSecurity != "imap" {
 		return mailAccountForm{}, false
 	}
-	if requirePassword && (form.IMAPPassword == "" || form.SMTPPassword == "") {
+	if form.IMAPHost == "" || form.IMAPPort <= 0 || form.IMAPPort > 65535 || form.IMAPUsername == "" {
 		return mailAccountForm{}, false
 	}
 	return form, true
 }
 
-func parseMailAccountUpdateForm(r *http.Request) (mailAccountForm, bool) {
-	imapPort, err := strconv.Atoi(r.FormValue("imap_port"))
-	if err != nil {
-		return mailAccountForm{}, false
+func parseSMTPForm(r *http.Request) (mailAccountForm, bool) {
+	form := mailAccountForm{
+		HasSMTP:      true,
+		SMTPHost:     r.FormValue("smtp_host"),
+		SMTPSecurity: r.FormValue("smtp_security"),
+		SMTPUsername: r.FormValue("smtp_username"),
+		SMTPPassword: r.FormValue("smtp_password"),
 	}
 	smtpPort, err := strconv.Atoi(r.FormValue("smtp_port"))
 	if err != nil {
 		return mailAccountForm{}, false
 	}
-
-	form := mailAccountForm{
-		IMAPHost:     r.FormValue("imap_host"),
-		IMAPPort:     imapPort,
-		IMAPSecurity: r.FormValue("imap_security"),
-		IMAPUsername: r.FormValue("imap_username"),
-		IMAPPassword: r.FormValue("imap_password"),
-		SMTPHost:     r.FormValue("smtp_host"),
-		SMTPPort:     smtpPort,
-		SMTPSecurity: r.FormValue("smtp_security"),
-		SMTPUsername: r.FormValue("smtp_username"),
-		SMTPPassword: r.FormValue("smtp_password"),
-	}
-	if form.IMAPSecurity != "imaps" && form.IMAPSecurity != "imap" {
-		return mailAccountForm{}, false
-	}
+	form.SMTPPort = smtpPort
 	if form.SMTPSecurity != "starttls" && form.SMTPSecurity != "smtps" && form.SMTPSecurity != "plain" {
-		return mailAccountForm{}, false
-	}
-	if form.IMAPHost == "" || form.IMAPPort <= 0 || form.IMAPPort > 65535 || form.IMAPUsername == "" {
 		return mailAccountForm{}, false
 	}
 	if form.SMTPHost == "" || form.SMTPPort <= 0 || form.SMTPPort > 65535 || form.SMTPUsername == "" {
@@ -421,23 +533,29 @@ func parseMailAccountUpdateForm(r *http.Request) (mailAccountForm, bool) {
 	return form, true
 }
 
-func (s *Server) insertMailAccount(r *http.Request, kek []byte, userID string, form mailAccountForm) error {
+func (s *Server) insertMailAccount(r *http.Request, kek []byte, userID string, form mailAccountForm) (string, error) {
 	accountID, err := mailaccount.NewID()
 	if err != nil {
-		return fmt.Errorf("create account id: %w", err)
+		return "", fmt.Errorf("create account id: %w", err)
 	}
 
 	encrypter, err := crypto.NewEnvelope(kek, s.mailCrypto.KEKVersion, envelopeAAD(userID, accountID))
 	if err != nil {
-		return fmt.Errorf("create envelope: %w", err)
+		return "", fmt.Errorf("create envelope: %w", err)
 	}
-	encryptedIMAPPassword, err := encrypter.EncryptWithAAD([]byte(form.IMAPPassword), fieldAAD(userID, accountID, aadFieldIMAPPassword))
-	if err != nil {
-		return fmt.Errorf("encrypt imap password: %w", err)
+	var encryptedIMAPPassword []byte
+	if form.HasIMAP {
+		encryptedIMAPPassword, err = encrypter.EncryptWithAAD([]byte(form.IMAPPassword), fieldAAD(userID, accountID, aadFieldIMAPPassword))
+		if err != nil {
+			return "", fmt.Errorf("encrypt imap password: %w", err)
+		}
 	}
-	encryptedSMTPPassword, err := encrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(userID, accountID, aadFieldSMTPPassword))
-	if err != nil {
-		return fmt.Errorf("encrypt smtp password: %w", err)
+	var encryptedSMTPPassword []byte
+	if form.HasSMTP {
+		encryptedSMTPPassword, err = encrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(userID, accountID, aadFieldSMTPPassword))
+		if err != nil {
+			return "", fmt.Errorf("encrypt smtp password: %w", err)
+		}
 	}
 	envelope := encrypter.Envelope()
 
@@ -445,11 +563,13 @@ func (s *Server) insertMailAccount(r *http.Request, kek []byte, userID string, f
 		ID:                    accountID,
 		UserID:                userID,
 		EmailAddress:          form.EmailAddress,
+		HasIMAP:               form.HasIMAP,
 		IMAPHost:              form.IMAPHost,
 		IMAPPort:              form.IMAPPort,
 		IMAPSecurity:          form.IMAPSecurity,
 		IMAPUsername:          form.IMAPUsername,
 		EncryptedIMAPPassword: encryptedIMAPPassword,
+		HasSMTP:               form.HasSMTP,
 		SMTPHost:              form.SMTPHost,
 		SMTPPort:              form.SMTPPort,
 		SMTPSecurity:          form.SMTPSecurity,
@@ -458,9 +578,9 @@ func (s *Server) insertMailAccount(r *http.Request, kek []byte, userID string, f
 		WrappedDEK:            envelope.WrappedDEK,
 		KEKVersion:            envelope.KEKVersion,
 	}); err != nil {
-		return fmt.Errorf("insert account: %w", err)
+		return "", fmt.Errorf("insert account: %w", err)
 	}
-	return nil
+	return accountID, nil
 }
 
 func envelopeAAD(userID, accountID string) []byte {
@@ -478,6 +598,13 @@ func selected(ok bool) string {
 	return ""
 }
 
+func portValue(ok bool, port int) string {
+	if !ok {
+		return ""
+	}
+	return strconv.Itoa(port)
+}
+
 func (s *Server) handleNewMailAccount(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -491,63 +618,6 @@ func (s *Server) handleNewMailAccount(w http.ResponseWriter, r *http.Request) {
     <p>
       <label>Email address<br>
         <input type="email" name="email_address" required>
-      </label>
-    </p>
-    <p>
-      <label>IMAP Host<br>
-        <input name="imap_host" required>
-      </label>
-    </p>
-    <p>
-      <label>IMAP Port<br>
-        <input name="imap_port" value="993" required>
-      </label>
-    </p>
-    <p>
-      <label>IMAP protocol<br>
-        <select name="imap_security" required>
-          <option value="imaps" selected>IMAPS</option>
-          <option value="imap">IMAP</option>
-        </select>
-      </label>
-    </p>
-    <p>
-      <label>IMAP username<br>
-        <input name="imap_username" required>
-      </label>
-    </p>
-    <p>
-      <label>Password<br>
-        <input type="password" name="imap_password" required>
-      </label>
-    </p>
-    <p>
-      <label>SMTP Host<br>
-        <input name="smtp_host" required>
-      </label>
-    </p>
-    <p>
-      <label>SMTP Port<br>
-        <input name="smtp_port" value="587" required>
-      </label>
-    </p>
-    <p>
-      <label>SMTP protocol<br>
-        <select name="smtp_security" required>
-          <option value="starttls" selected>STARTTLS</option>
-          <option value="smtps">SMTPS</option>
-          <option value="plain">Plain</option>
-        </select>
-      </label>
-    </p>
-    <p>
-      <label>SMTP username<br>
-        <input name="smtp_username" required>
-      </label>
-    </p>
-    <p>
-      <label>SMTP password<br>
-        <input type="password" name="smtp_password" required>
       </label>
     </p>
     <button type="submit">Save</button>

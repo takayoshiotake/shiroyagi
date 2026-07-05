@@ -69,25 +69,19 @@ updated_at
 
 ## mail_accounts
 
-`mail_accounts` stores connection information for IMAP and SMTP accounts.
+`mail_accounts` stores the email-address-level parent record and encryption
+envelope for IMAP and SMTP child settings.
 
 One Shiroyagi user can have multiple mail accounts.
 Each user can register a given email address only once.
+IMAP and SMTP settings are stored in separate 0-or-1 child tables.
+A mail account can temporarily have no protocol settings while it is being
+configured.
 
 ```text
 id
 user_id
 email_address
-imap_host
-imap_port
-imap_security
-imap_username
-encrypted_imap_password
-smtp_host
-smtp_port
-smtp_security
-smtp_username
-encrypted_smtp_password
 wrapped_dek
 kek_version
 created_at
@@ -99,16 +93,6 @@ updated_at
 - `id`: mail account ID
 - `user_id`: references `users.id`
 - `email_address`: email address for this account
-- `imap_host`: IMAP server hostname
-- `imap_port`: IMAP server port
-- `imap_security`: IMAP protocol mode, either `imaps` or `imap`
-- `imap_username`: IMAP login username
-- `encrypted_imap_password`: encrypted IMAP password
-- `smtp_host`: SMTP server hostname
-- `smtp_port`: SMTP server port
-- `smtp_security`: SMTP protocol mode, such as `starttls`, `smtps`, or `plain`
-- `smtp_username`: SMTP login username
-- `encrypted_smtp_password`: encrypted SMTP password
 - `wrapped_dek`: DEK encrypted with the current KEK
 - `kek_version`: KEK version used to wrap the DEK
 
@@ -126,6 +110,54 @@ A separate encrypted password version column is intentionally not stored. AES-25
 ### Constraints
 
 - `uk_mail_accounts_user_id_email_address`: unique `(user_id, email_address)`
+
+## imap_accounts
+
+`imap_accounts` stores optional IMAP connection settings for a mail account.
+
+```text
+mail_account_id
+host
+port
+security
+username
+encrypted_password
+created_at
+updated_at
+```
+
+### Columns
+
+- `mail_account_id`: references `mail_accounts.id`
+- `host`: IMAP server hostname
+- `port`: IMAP server port
+- `security`: IMAP protocol mode, either `imaps` or `imap`
+- `username`: IMAP login username
+- `encrypted_password`: encrypted IMAP password
+
+## smtp_accounts
+
+`smtp_accounts` stores optional SMTP connection settings for a mail account.
+
+```text
+mail_account_id
+host
+port
+security
+username
+encrypted_password
+created_at
+updated_at
+```
+
+### Columns
+
+- `mail_account_id`: references `mail_accounts.id`
+- `host`: SMTP server hostname
+- `port`: SMTP server port
+- `security`: SMTP protocol mode, such as `starttls`, `smtps`, or `plain`
+- `username`: SMTP login username
+- `encrypted_password`: encrypted SMTP password
 
 ## mail_account_settings
 

@@ -18,8 +18,8 @@ Do not trust arbitrary issuers.
 Use envelope encryption.
 
 ```text
-IMAP password -> DEK -> AES-256-GCM -> encrypted_imap_password
-SMTP password -> DEK -> AES-256-GCM -> encrypted_smtp_password
+IMAP password -> DEK -> AES-256-GCM -> imap_accounts.encrypted_password
+SMTP password -> DEK -> AES-256-GCM -> smtp_accounts.encrypted_password
 DEK           -> KEK -> AES-256-GCM -> wrapped_dek
 ```
 

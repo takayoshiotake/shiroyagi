@@ -20,11 +20,13 @@ type Account struct {
 	ID                    string
 	UserID                string
 	EmailAddress          string
+	HasIMAP               bool
 	IMAPHost              string
 	IMAPPort              int
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	HasSMTP               bool
 	SMTPHost              string
 	SMTPPort              int
 	SMTPSecurity          string
@@ -42,11 +44,13 @@ type Summary struct {
 type Detail struct {
 	ID                    string
 	EmailAddress          string
+	HasIMAP               bool
 	IMAPHost              string
 	IMAPPort              int
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	HasSMTP               bool
 	SMTPHost              string
 	SMTPPort              int
 	SMTPSecurity          string
@@ -118,43 +122,63 @@ ORDER BY email_address`,
 
 func (s *Store) Get(ctx context.Context, userID, id string) (Detail, bool, error) {
 	var account Detail
+	var imapHost, imapSecurity, imapUsername sql.NullString
+	var imapPort sql.NullInt64
+	var smtpHost, smtpSecurity, smtpUsername sql.NullString
+	var smtpPort sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
-SELECT id,
-       email_address,
-       imap_host,
-       imap_port,
-       imap_security,
-       imap_username,
-       encrypted_imap_password,
-       smtp_host,
-       smtp_port,
-       smtp_security,
-       smtp_username,
-       encrypted_smtp_password,
-       wrapped_dek,
-       kek_version
-FROM mail_accounts
-WHERE user_id = $1
-  AND id = $2`,
+SELECT ma.id,
+       ma.email_address,
+       ia.host,
+       ia.port,
+       ia.security,
+       ia.username,
+       ia.encrypted_password,
+       sa.host,
+       sa.port,
+       sa.security,
+       sa.username,
+       sa.encrypted_password,
+       ma.wrapped_dek,
+       ma.kek_version
+FROM mail_accounts ma
+LEFT JOIN imap_accounts ia ON ia.mail_account_id = ma.id
+LEFT JOIN smtp_accounts sa ON sa.mail_account_id = ma.id
+WHERE ma.user_id = $1
+  AND ma.id = $2`,
 		userID,
 		id,
 	).Scan(
 		&account.ID,
 		&account.EmailAddress,
-		&account.IMAPHost,
-		&account.IMAPPort,
-		&account.IMAPSecurity,
-		&account.IMAPUsername,
+		&imapHost,
+		&imapPort,
+		&imapSecurity,
+		&imapUsername,
 		&account.EncryptedIMAPPassword,
-		&account.SMTPHost,
-		&account.SMTPPort,
-		&account.SMTPSecurity,
-		&account.SMTPUsername,
+		&smtpHost,
+		&smtpPort,
+		&smtpSecurity,
+		&smtpUsername,
 		&account.EncryptedSMTPPassword,
 		&account.WrappedDEK,
 		&account.KEKVersion,
 	)
 	if err == nil {
+		account.HasIMAP = imapHost.Valid
+		account.IMAPHost = imapHost.String
+		if imapPort.Valid {
+			account.IMAPPort = int(imapPort.Int64)
+		}
+		account.IMAPSecurity = imapSecurity.String
+		account.IMAPUsername = imapUsername.String
+		account.HasSMTP = smtpHost.Valid
+		account.SMTPHost = smtpHost.String
+		if smtpPort.Valid {
+			account.SMTPPort = int(smtpPort.Int64)
+		}
+		account.SMTPSecurity = smtpSecurity.String
+		account.SMTPUsername = smtpUsername.String
 		return account, true, nil
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -164,41 +188,29 @@ WHERE user_id = $1
 }
 
 func (s *Store) Insert(ctx context.Context, account Account) error {
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin mail account insert: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO mail_accounts (
     id,
     user_id,
     email_address,
-    imap_host,
-    imap_port,
-    imap_security,
-    imap_username,
-    encrypted_imap_password,
-    smtp_host,
-    smtp_port,
-    smtp_security,
-    smtp_username,
-    encrypted_smtp_password,
     wrapped_dek,
     kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+    $1, $2, $3, $4, $5, NOW(), NOW()
 )`,
 		account.ID,
 		account.UserID,
 		account.EmailAddress,
-		account.IMAPHost,
-		account.IMAPPort,
-		account.IMAPSecurity,
-		account.IMAPUsername,
-		account.EncryptedIMAPPassword,
-		account.SMTPHost,
-		account.SMTPPort,
-		account.SMTPSecurity,
-		account.SMTPUsername,
-		account.EncryptedSMTPPassword,
 		account.WrappedDEK,
 		account.KEKVersion,
 	)
@@ -208,40 +220,100 @@ INSERT INTO mail_accounts (
 		}
 		return fmt.Errorf("insert mail account: %w", err)
 	}
+	if account.HasIMAP {
+		if err := insertIMAP(ctx, tx, account); err != nil {
+			return err
+		}
+	}
+	if account.HasSMTP {
+		if err := insertSMTP(ctx, tx, account); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit mail account insert: %w", err)
+	}
 	return nil
 }
 
 func (s *Store) Update(ctx context.Context, account Account) error {
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin mail account update: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	_, err = tx.ExecContext(ctx, `
 UPDATE mail_accounts
-SET imap_host = $3,
-    imap_port = $4,
-    imap_security = $5,
-    imap_username = $6,
-    encrypted_imap_password = $7,
-    smtp_host = $8,
-    smtp_port = $9,
-    smtp_security = $10,
-    smtp_username = $11,
-    encrypted_smtp_password = $12,
-    updated_at = NOW()
+SET updated_at = NOW()
 WHERE user_id = $1
   AND id = $2`,
 		account.UserID,
 		account.ID,
-		account.IMAPHost,
-		account.IMAPPort,
-		account.IMAPSecurity,
-		account.IMAPUsername,
-		account.EncryptedIMAPPassword,
-		account.SMTPHost,
-		account.SMTPPort,
-		account.SMTPSecurity,
-		account.SMTPUsername,
-		account.EncryptedSMTPPassword,
 	)
 	if err != nil {
 		return fmt.Errorf("update mail account: %w", err)
+	}
+	if account.HasIMAP {
+		if err := upsertIMAP(ctx, tx, account); err != nil {
+			return err
+		}
+	} else if err := deleteIMAP(ctx, tx, account.ID); err != nil {
+		return err
+	}
+	if account.HasSMTP {
+		if err := upsertSMTP(ctx, tx, account); err != nil {
+			return err
+		}
+	} else if err := deleteSMTP(ctx, tx, account.ID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit mail account update: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SaveIMAP(ctx context.Context, account Account) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin imap account save: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if err := touchMailAccount(ctx, tx, account.UserID, account.ID); err != nil {
+		return err
+	}
+	if err := upsertIMAP(ctx, tx, account); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit imap account save: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SaveSMTP(ctx context.Context, account Account) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin smtp account save: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if err := touchMailAccount(ctx, tx, account.UserID, account.ID); err != nil {
+		return err
+	}
+	if err := upsertSMTP(ctx, tx, account); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit smtp account save: %w", err)
 	}
 	return nil
 }
@@ -255,6 +327,212 @@ WHERE user_id = $1
 		id,
 	); err != nil {
 		return fmt.Errorf("delete mail account: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteIMAP(ctx context.Context, userID, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin imap account delete: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if err := touchMailAccount(ctx, tx, userID, id); err != nil {
+		return err
+	}
+	if err := deleteIMAP(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit imap account delete: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteSMTP(ctx context.Context, userID, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin smtp account delete: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if err := touchMailAccount(ctx, tx, userID, id); err != nil {
+		return err
+	}
+	if err := deleteSMTP(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit smtp account delete: %w", err)
+	}
+	return nil
+}
+
+type txExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func touchMailAccount(ctx context.Context, tx txExecutor, userID, id string) error {
+	result, err := tx.ExecContext(ctx, `
+UPDATE mail_accounts
+SET updated_at = NOW()
+WHERE user_id = $1
+  AND id = $2`,
+		userID,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("touch mail account: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read touched mail account count: %w", err)
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func insertIMAP(ctx context.Context, tx txExecutor, account Account) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO imap_accounts (
+    mail_account_id,
+    host,
+    port,
+    security,
+    username,
+    encrypted_password,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+)`,
+		account.ID,
+		account.IMAPHost,
+		account.IMAPPort,
+		account.IMAPSecurity,
+		account.IMAPUsername,
+		account.EncryptedIMAPPassword,
+	)
+	if err != nil {
+		return fmt.Errorf("insert imap account: %w", err)
+	}
+	return nil
+}
+
+func insertSMTP(ctx context.Context, tx txExecutor, account Account) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO smtp_accounts (
+    mail_account_id,
+    host,
+    port,
+    security,
+    username,
+    encrypted_password,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+)`,
+		account.ID,
+		account.SMTPHost,
+		account.SMTPPort,
+		account.SMTPSecurity,
+		account.SMTPUsername,
+		account.EncryptedSMTPPassword,
+	)
+	if err != nil {
+		return fmt.Errorf("insert smtp account: %w", err)
+	}
+	return nil
+}
+
+func upsertIMAP(ctx context.Context, tx txExecutor, account Account) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO imap_accounts (
+    mail_account_id,
+    host,
+    port,
+    security,
+    username,
+    encrypted_password,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+)
+ON CONFLICT (mail_account_id)
+DO UPDATE SET
+    host = EXCLUDED.host,
+    port = EXCLUDED.port,
+    security = EXCLUDED.security,
+    username = EXCLUDED.username,
+    encrypted_password = EXCLUDED.encrypted_password,
+    updated_at = NOW()`,
+		account.ID,
+		account.IMAPHost,
+		account.IMAPPort,
+		account.IMAPSecurity,
+		account.IMAPUsername,
+		account.EncryptedIMAPPassword,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert imap account: %w", err)
+	}
+	return nil
+}
+
+func upsertSMTP(ctx context.Context, tx txExecutor, account Account) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO smtp_accounts (
+    mail_account_id,
+    host,
+    port,
+    security,
+    username,
+    encrypted_password,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+)
+ON CONFLICT (mail_account_id)
+DO UPDATE SET
+    host = EXCLUDED.host,
+    port = EXCLUDED.port,
+    security = EXCLUDED.security,
+    username = EXCLUDED.username,
+    encrypted_password = EXCLUDED.encrypted_password,
+    updated_at = NOW()`,
+		account.ID,
+		account.SMTPHost,
+		account.SMTPPort,
+		account.SMTPSecurity,
+		account.SMTPUsername,
+		account.EncryptedSMTPPassword,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert smtp account: %w", err)
+	}
+	return nil
+}
+
+func deleteIMAP(ctx context.Context, tx txExecutor, id string) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM imap_accounts WHERE mail_account_id = $1", id); err != nil {
+		return fmt.Errorf("delete imap account: %w", err)
+	}
+	return nil
+}
+
+func deleteSMTP(ctx context.Context, tx txExecutor, id string) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM smtp_accounts WHERE mail_account_id = $1", id); err != nil {
+		return fmt.Errorf("delete smtp account: %w", err)
 	}
 	return nil
 }
