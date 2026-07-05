@@ -35,27 +35,28 @@ func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.requireSession(s.handleIndex))
-	mux.HandleFunc("/mail-accounts", s.requireSession(s.handleMailAccounts))
-	mux.HandleFunc("/mail-accounts/", s.requireSession(s.handleMailAccount))
-	mux.HandleFunc("/mail-accounts/new", s.requireSession(s.handleNewMailAccount))
+	mux.HandleFunc("GET /{$}", s.requireSession(s.handleIndex))
+	mux.HandleFunc("GET /mail-accounts", s.requireSession(s.handleListMailAccounts))
+	mux.HandleFunc("POST /mail-accounts", s.requireSession(s.handleCreateMailAccount))
+	mux.HandleFunc("GET /mail-accounts/new", s.requireSession(s.handleNewMailAccount))
+	mux.HandleFunc("GET /mail-accounts/{id}/edit", s.requireSession(s.handleEditMailAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/imap", s.requireSession(s.handleSaveIMAPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/smtp", s.requireSession(s.handleSaveSMTPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/delete-imap", s.requireSession(s.handleDeleteIMAPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/delete-smtp", s.requireSession(s.handleDeleteSMTPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/delete", s.requireSession(s.handleDeleteMailAccount))
 
-	mux.HandleFunc("/signin", s.handleSignIn)
-	mux.HandleFunc("/auth/login", s.handleAuthLogin)
-	mux.HandleFunc("/auth/callback", s.handleAuthCallback)
-	mux.HandleFunc("/auth/logout", s.handleAuthLogout)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /signin", s.handleSignIn)
+	mux.HandleFunc("GET /auth/login", s.handleAuthLogin)
+	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
+	mux.HandleFunc("GET /auth/logout", s.handleAuthLogout)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintln(w, "ok")
 	})
 	return mux
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
 	session, _ := sessionFromContext(r.Context())
 
 	displayName := session.Name
@@ -83,10 +84,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if _, ok := s.currentSession(r); ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return

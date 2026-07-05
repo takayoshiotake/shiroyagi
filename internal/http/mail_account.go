@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/takayoshiotake/shiroyagi/internal/crypto"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
@@ -32,75 +31,6 @@ type mailAccountForm struct {
 	SMTPSecurity string
 	SMTPUsername string
 	SMTPPassword string
-}
-
-func (s *Server) handleMailAccounts(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		s.handleListMailAccounts(w, r)
-	case http.MethodPost:
-		s.handleCreateMailAccount(w, r)
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (s *Server) handleMailAccount(w http.ResponseWriter, r *http.Request) {
-	id, action, ok := parseMailAccountAction(r.URL.Path)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-
-	switch action {
-	case "edit":
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleEditMailAccount(w, r, id)
-	case "imap":
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleSaveIMAPAccount(w, r, id)
-	case "smtp":
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleSaveSMTPAccount(w, r, id)
-	case "delete-imap":
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleDeleteIMAPAccount(w, r, id)
-	case "delete-smtp":
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleDeleteSMTPAccount(w, r, id)
-	case "delete":
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleDeleteMailAccount(w, r, id)
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-func parseMailAccountAction(path string) (string, string, bool) {
-	rest := strings.TrimPrefix(path, "/mail-accounts/")
-	parts := strings.Split(rest, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
 }
 
 func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +73,8 @@ func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) 
 </html>`)
 }
 
-func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	session, _ := sessionFromContext(r.Context())
 	account, found, err := s.accounts.Get(r.Context(), session.Subject, id)
 	if err != nil {
@@ -269,11 +200,6 @@ func (s *Server) handleEditMailAccount(w http.ResponseWriter, r *http.Request, i
 }
 
 func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -314,7 +240,8 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
 }
 
-func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -385,7 +312,8 @@ func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request, i
 	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
 }
 
-func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -456,7 +384,8 @@ func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request, i
 	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
 }
 
-func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	session, _ := sessionFromContext(r.Context())
 	if err := s.accounts.Delete(r.Context(), session.Subject, id); err != nil {
 		log.Printf("delete mail account: %v", err)
@@ -467,7 +396,8 @@ func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
 }
 
-func (s *Server) handleDeleteIMAPAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleDeleteIMAPAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	session, _ := sessionFromContext(r.Context())
 	if err := s.accounts.DeleteIMAP(r.Context(), session.Subject, id); err != nil {
 		log.Printf("delete imap account: %v", err)
@@ -478,7 +408,8 @@ func (s *Server) handleDeleteIMAPAccount(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, "/mail-accounts/"+id+"/edit", http.StatusSeeOther)
 }
 
-func (s *Server) handleDeleteSMTPAccount(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) handleDeleteSMTPAccount(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	session, _ := sessionFromContext(r.Context())
 	if err := s.accounts.DeleteSMTP(r.Context(), session.Subject, id); err != nil {
 		log.Printf("delete smtp account: %v", err)
