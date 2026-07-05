@@ -72,6 +72,7 @@ updated_at
 `mail_accounts` stores connection information for IMAP accounts.
 
 One Shiroyagi user can have multiple mail accounts.
+Each user can register a given email address only once.
 
 ```text
 id
@@ -95,7 +96,7 @@ updated_at
 - `email_address`: email address for this account
 - `imap_host`: IMAP server hostname
 - `imap_port`: IMAP server port
-- `imap_security`: IMAP transport security mode, such as `tls`, `starttls`, or `none`
+- `imap_security`: IMAP protocol mode, either `imaps` or `imap`
 - `imap_username`: IMAP login username
 - `encrypted_imap_password`: encrypted IMAP password
 - `wrapped_dek`: DEK encrypted with the current KEK
@@ -111,6 +112,10 @@ IMAP passwords are encrypted with envelope encryption.
 - KEK is never stored in PostgreSQL
 
 A separate encrypted password version column is intentionally not stored. AES-256-GCM is the only supported encryption format for now. If a future format change becomes necessary, the encrypted blob can be versioned or migrated then.
+
+### Constraints
+
+- `uk_mail_accounts_user_id_email_address`: unique `(user_id, email_address)`
 
 ## mail_account_settings
 

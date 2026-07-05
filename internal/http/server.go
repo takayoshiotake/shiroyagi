@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/takayoshiotake/shiroyagi/internal/auth"
+	"github.com/takayoshiotake/shiroyagi/internal/config"
+	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
 
 const (
@@ -18,18 +20,25 @@ const (
 type Server struct {
 	authClient *auth.Client
 	sessions   *auth.SessionStore
+	mailCrypto config.MailCryptoConfig
+	accounts   *mailaccount.Store
 }
 
-func New(authClient *auth.Client, sessions *auth.SessionStore) *Server {
+func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config.MailCryptoConfig, accounts *mailaccount.Store) *Server {
 	return &Server{
 		authClient: authClient,
 		sessions:   sessions,
+		mailCrypto: mailCrypto,
+		accounts:   accounts,
 	}
 }
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.requireSession(s.handleIndex))
+	mux.HandleFunc("/mail-accounts", s.requireSession(s.handleMailAccounts))
+	mux.HandleFunc("/mail-accounts/new", s.requireSession(s.handleNewMailAccount))
+
 	mux.HandleFunc("/signin", s.handleSignIn)
 	mux.HandleFunc("/auth/login", s.handleAuthLogin)
 	mux.HandleFunc("/auth/callback", s.handleAuthCallback)

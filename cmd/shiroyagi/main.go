@@ -10,6 +10,7 @@ import (
 	"github.com/takayoshiotake/shiroyagi/internal/config"
 	"github.com/takayoshiotake/shiroyagi/internal/db"
 	httpserver "github.com/takayoshiotake/shiroyagi/internal/http"
+	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 		log.Fatalf("create auth client: %v", err)
 	}
 
-	server := httpserver.New(authClient, auth.NewSessionStore())
+	server := httpserver.New(authClient, auth.NewSessionStore(), cfg.MailCrypto, mailaccount.NewStore(database))
 
 	log.Println("listening on :8080")
 	if err := http.ListenAndServe(":8080", server.Routes()); err != nil {

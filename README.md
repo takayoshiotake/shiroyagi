@@ -32,6 +32,7 @@ DATABASE_PORT=5432 \
 DATABASE_NAME=shiroyagi \
 DATABASE_USER=shiroyagi \
 DATABASE_PASSWORD_FILE=secrets/dev/postgres_password \
+MAIL_ACCOUNT_KEK_FILE=secrets/dev/mail_account_kek \
 go run ./cmd/shiroyagi
 ```
 

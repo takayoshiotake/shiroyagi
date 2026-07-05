@@ -13,6 +13,7 @@ type Config struct {
 	ClientSecret  string
 	RedirectURI   string
 	Database      DatabaseConfig
+	MailCrypto    MailCryptoConfig
 }
 
 type DatabaseConfig struct {
@@ -21,6 +22,11 @@ type DatabaseConfig struct {
 	Name     string
 	User     string
 	Password string
+}
+
+type MailCryptoConfig struct {
+	KEKFile    string
+	KEKVersion int16
 }
 
 func Load() (Config, error) {
@@ -34,6 +40,10 @@ func Load() (Config, error) {
 			Port: os.Getenv("DATABASE_PORT"),
 			Name: os.Getenv("DATABASE_NAME"),
 			User: os.Getenv("DATABASE_USER"),
+		},
+		MailCrypto: MailCryptoConfig{
+			KEKFile:    os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
+			KEKVersion: 1,
 		},
 	}
 	if cfg.BrowserIssuer == "" {
@@ -61,6 +71,9 @@ func Load() (Config, error) {
 	}
 	if cfg.Database.User == "" {
 		missing = append(missing, "DATABASE_USER")
+	}
+	if cfg.MailCrypto.KEKFile == "" {
+		missing = append(missing, "MAIL_ACCOUNT_KEK_FILE")
 	}
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
