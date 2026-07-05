@@ -24,7 +24,10 @@ Current blob format:
 - version: 1 byte
 - nonce: 12 bytes
 - tag: 16 bytes
-- AAD: user_id + mail_account_id
+- wrapped DEK AAD: user_id + mail_account_id
+- encrypted field AAD: user_id + mail_account_id + field name
+
+For example, `encrypted_imap_password` uses the `imap_password` field name.
 
 The blob contains the encryption format version, so no separate encrypted
 password version column is stored. The KEK version is stored in

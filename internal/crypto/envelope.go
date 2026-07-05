@@ -29,12 +29,10 @@ type Envelope struct {
 type EnvelopeEncrypter struct {
 	envelope Envelope
 	dek      []byte
-	aad      []byte
 }
 
 type EnvelopeDecrypter struct {
 	dek []byte
-	aad []byte
 }
 
 func NewEnvelope(kek []byte, kekVersion int16, aad []byte) (*EnvelopeEncrypter, error) {
@@ -58,7 +56,6 @@ func NewEnvelope(kek []byte, kekVersion int16, aad []byte) (*EnvelopeEncrypter, 
 			KEKVersion: kekVersion,
 		},
 		dek: dek,
-		aad: aad,
 	}, nil
 }
 
@@ -75,10 +72,7 @@ func OpenEnvelope(kek []byte, envelope Envelope, aad []byte) (*EnvelopeDecrypter
 		return nil, fmt.Errorf("validate DEK: %w", err)
 	}
 
-	return &EnvelopeDecrypter{
-		dek: dek,
-		aad: aad,
-	}, nil
+	return &EnvelopeDecrypter{dek: dek}, nil
 }
 
 func (e *EnvelopeEncrypter) Envelope() Envelope {
@@ -86,7 +80,11 @@ func (e *EnvelopeEncrypter) Envelope() Envelope {
 }
 
 func (e *EnvelopeEncrypter) Encrypt(plaintext []byte) ([]byte, error) {
-	ciphertext, err := encryptAESGCM(e.dek, plaintext, e.aad)
+	return e.EncryptWithAAD(plaintext, nil)
+}
+
+func (e *EnvelopeEncrypter) EncryptWithAAD(plaintext, aad []byte) ([]byte, error) {
+	ciphertext, err := encryptAESGCM(e.dek, plaintext, aad)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt data: %w", err)
 	}
@@ -94,7 +92,19 @@ func (e *EnvelopeEncrypter) Encrypt(plaintext []byte) ([]byte, error) {
 }
 
 func (d *EnvelopeDecrypter) Decrypt(ciphertext []byte) ([]byte, error) {
-	plaintext, err := decryptAESGCM(d.dek, ciphertext, d.aad)
+	return d.DecryptWithAAD(ciphertext, nil)
+}
+
+func (d *EnvelopeDecrypter) EncryptWithAAD(plaintext, aad []byte) ([]byte, error) {
+	ciphertext, err := encryptAESGCM(d.dek, plaintext, aad)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt data: %w", err)
+	}
+	return ciphertext, nil
+}
+
+func (d *EnvelopeDecrypter) DecryptWithAAD(ciphertext, aad []byte) ([]byte, error) {
+	plaintext, err := decryptAESGCM(d.dek, ciphertext, aad)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt data: %w", err)
 	}

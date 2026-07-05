@@ -11,6 +11,8 @@ func TestEnvelopeRoundTripWithMultiplePlaintexts(t *testing.T) {
 	imapPassword := []byte("imap-password")
 	smtpPassword := []byte("smtp-password")
 	aad := []byte("user-1:account-1")
+	imapAAD := []byte("user-1:account-1:imap_password")
+	smtpAAD := []byte("user-1:account-1:smtp_password")
 
 	encrypter, err := NewEnvelope(kek, 1, aad)
 	if err != nil {
@@ -24,11 +26,11 @@ func TestEnvelopeRoundTripWithMultiplePlaintexts(t *testing.T) {
 		t.Fatal("WrappedDEK is empty")
 	}
 
-	encryptedIMAPPassword, err := encrypter.Encrypt(imapPassword)
+	encryptedIMAPPassword, err := encrypter.EncryptWithAAD(imapPassword, imapAAD)
 	if err != nil {
 		t.Fatalf("Encrypt(imapPassword) error = %v", err)
 	}
-	encryptedSMTPPassword, err := encrypter.Encrypt(smtpPassword)
+	encryptedSMTPPassword, err := encrypter.EncryptWithAAD(smtpPassword, smtpAAD)
 	if err != nil {
 		t.Fatalf("Encrypt(smtpPassword) error = %v", err)
 	}
@@ -43,19 +45,47 @@ func TestEnvelopeRoundTripWithMultiplePlaintexts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenEnvelope() error = %v", err)
 	}
-	gotIMAPPassword, err := decrypter.Decrypt(encryptedIMAPPassword)
+	gotIMAPPassword, err := decrypter.DecryptWithAAD(encryptedIMAPPassword, imapAAD)
 	if err != nil {
 		t.Fatalf("Decrypt(encryptedIMAPPassword) error = %v", err)
 	}
 	if !bytes.Equal(gotIMAPPassword, imapPassword) {
 		t.Fatalf("Decrypt(encryptedIMAPPassword) = %q, want %q", gotIMAPPassword, imapPassword)
 	}
-	gotSMTPPassword, err := decrypter.Decrypt(encryptedSMTPPassword)
+	gotSMTPPassword, err := decrypter.DecryptWithAAD(encryptedSMTPPassword, smtpAAD)
 	if err != nil {
 		t.Fatalf("Decrypt(encryptedSMTPPassword) error = %v", err)
 	}
 	if !bytes.Equal(gotSMTPPassword, smtpPassword) {
 		t.Fatalf("Decrypt(encryptedSMTPPassword) = %q, want %q", gotSMTPPassword, smtpPassword)
+	}
+}
+
+func TestOpenEnvelopeEncryptsWithExistingDEK(t *testing.T) {
+	kek := bytes.Repeat([]byte{7}, KeySize)
+	envelopeAAD := []byte("user-1:account-1")
+	fieldAAD := []byte("user-1:account-1:imap_password")
+
+	encrypter, err := NewEnvelope(kek, 1, envelopeAAD)
+	if err != nil {
+		t.Fatalf("NewEnvelope() error = %v", err)
+	}
+	decrypter, err := OpenEnvelope(kek, encrypter.Envelope(), envelopeAAD)
+	if err != nil {
+		t.Fatalf("OpenEnvelope() error = %v", err)
+	}
+
+	updatedPassword := []byte("updated-imap-password")
+	encryptedPassword, err := decrypter.EncryptWithAAD(updatedPassword, fieldAAD)
+	if err != nil {
+		t.Fatalf("EncryptWithAAD() error = %v", err)
+	}
+	gotPassword, err := decrypter.DecryptWithAAD(encryptedPassword, fieldAAD)
+	if err != nil {
+		t.Fatalf("DecryptWithAAD() error = %v", err)
+	}
+	if !bytes.Equal(gotPassword, updatedPassword) {
+		t.Fatalf("DecryptWithAAD() = %q, want %q", gotPassword, updatedPassword)
 	}
 }
 

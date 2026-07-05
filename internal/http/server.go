@@ -37,6 +37,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.requireSession(s.handleIndex))
 	mux.HandleFunc("/mail-accounts", s.requireSession(s.handleMailAccounts))
+	mux.HandleFunc("/mail-accounts/", s.requireSession(s.handleMailAccount))
 	mux.HandleFunc("/mail-accounts/new", s.requireSession(s.handleNewMailAccount))
 
 	mux.HandleFunc("/signin", s.handleSignIn)
@@ -75,6 +76,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 <body>
   <h1>Shiroyagi</h1>
   <p>Signed in as %s</p>
+  <p><a href="/mail-accounts">Mail accounts</a></p>
   <p><a href="/auth/logout">Sign out</a></p>
 </body>
 </html>`, html.EscapeString(displayName))

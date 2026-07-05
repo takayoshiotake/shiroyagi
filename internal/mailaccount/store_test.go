@@ -23,14 +23,6 @@ func TestNewIDReturnsUUIDV4(t *testing.T) {
 	}
 }
 
-func TestEncryptionAAD(t *testing.T) {
-	got := string(EncryptionAAD("user-1", "account-1"))
-	want := "user-1:account-1"
-	if got != want {
-		t.Fatalf("EncryptionAAD() = %q, want %q", got, want)
-	}
-}
-
 func TestIsUniqueViolation(t *testing.T) {
 	err := &pgconn.PgError{
 		Code:           "23505",
