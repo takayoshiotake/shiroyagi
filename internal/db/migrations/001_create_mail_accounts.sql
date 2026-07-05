@@ -2,13 +2,31 @@ CREATE TABLE mail_accounts (
     id UUID PRIMARY KEY,
     user_id TEXT NOT NULL,
     email_address TEXT NOT NULL,
-    imap_host TEXT NOT NULL,
-    imap_port INTEGER NOT NULL,
-    imap_security TEXT NOT NULL,
-    imap_username TEXT NOT NULL,
-    encrypted_imap_password BYTEA NOT NULL,
     wrapped_dek BYTEA NOT NULL,
     kek_version SMALLINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uk_mail_accounts_user_id_email_address UNIQUE (user_id, email_address)
+);
+
+CREATE TABLE imap_accounts (
+    mail_account_id UUID PRIMARY KEY REFERENCES mail_accounts(id) ON DELETE CASCADE,
+    host TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    security TEXT NOT NULL,
+    username TEXT NOT NULL,
+    encrypted_password BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE smtp_accounts (
+    mail_account_id UUID PRIMARY KEY REFERENCES mail_accounts(id) ON DELETE CASCADE,
+    host TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    security TEXT NOT NULL,
+    username TEXT NOT NULL,
+    encrypted_password BYTEA NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
