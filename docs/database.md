@@ -4,8 +4,28 @@ Shiroyagi separates application users from mail accounts.
 
 - `users`: Shiroyagi application users authenticated by Keycloak/OIDC
 - `user_preferences`: user-wide UI and behavior preferences
-- `mail_accounts`: IMAP/SMTP account connection credentials
+- `mail_accounts`: IMAP account connection credentials
 - `mail_account_settings`: per-mail-account display and sending settings
+- `schema_migrations`: applied database migration versions
+
+## schema_migrations
+
+`schema_migrations` records migration files that have already been applied.
+
+Migration SQL files are embedded in the Shiroyagi binary from
+`internal/db/migrations`. On startup, Shiroyagi creates this table if needed,
+sorts the embedded `*.sql` files by name, applies files that are not recorded
+yet, and then inserts each applied filename as the migration version.
+
+```text
+version
+applied_at
+```
+
+### Columns
+
+- `version`: migration filename, such as `001_create_mail_accounts.sql`
+- `applied_at`: time the migration was recorded
 
 ## users
 
@@ -49,16 +69,19 @@ updated_at
 
 ## mail_accounts
 
-`mail_accounts` stores connection information for IMAP/SMTP accounts.
+`mail_accounts` stores the email-address-level parent record and encryption
+envelope for IMAP and SMTP child settings.
 
 One Shiroyagi user can have multiple mail accounts.
+Each user can register a given email address only once.
+IMAP and SMTP settings are stored in separate 0-or-1 child tables.
+A mail account can temporarily have no protocol settings while it is being
+configured.
 
 ```text
 id
 user_id
-mail_address
-username
-encrypted_password
+email_address
 wrapped_dek
 kek_version
 created_at
@@ -69,22 +92,72 @@ updated_at
 
 - `id`: mail account ID
 - `user_id`: references `users.id`
-- `mail_address`: email address for this account
-- `username`: IMAP/SMTP login username
-- `encrypted_password`: encrypted mail account password
+- `email_address`: email address for this account
 - `wrapped_dek`: DEK encrypted with the current KEK
 - `kek_version`: KEK version used to wrap the DEK
 
 ### Encryption
 
-Mail passwords are encrypted with envelope encryption.
+IMAP and SMTP passwords are encrypted with envelope encryption.
 
 - Data encryption: AES-256-GCM
 - DEK wrapping: AES-256-GCM
 - KEK is loaded from `/run/secrets/mail_account_kek`
 - KEK is never stored in PostgreSQL
 
-`encrypted_password_version` is intentionally not stored. AES-256-GCM is the only supported encryption format for now. If a future format change becomes necessary, the encrypted blob can be versioned or migrated then.
+A separate encrypted password version column is intentionally not stored. AES-256-GCM is the only supported encryption format for now. If a future format change becomes necessary, the encrypted blob can be versioned or migrated then.
+
+### Constraints
+
+- `uk_mail_accounts_user_id_email_address`: unique `(user_id, email_address)`
+
+## imap_accounts
+
+`imap_accounts` stores optional IMAP connection settings for a mail account.
+
+```text
+mail_account_id
+host
+port
+security
+username
+encrypted_password
+created_at
+updated_at
+```
+
+### Columns
+
+- `mail_account_id`: references `mail_accounts.id`
+- `host`: IMAP server hostname
+- `port`: IMAP server port
+- `security`: IMAP protocol mode, either `imaps` or `imap`
+- `username`: IMAP login username
+- `encrypted_password`: encrypted IMAP password
+
+## smtp_accounts
+
+`smtp_accounts` stores optional SMTP connection settings for a mail account.
+
+```text
+mail_account_id
+host
+port
+security
+username
+encrypted_password
+created_at
+updated_at
+```
+
+### Columns
+
+- `mail_account_id`: references `mail_accounts.id`
+- `host`: SMTP server hostname
+- `port`: SMTP server port
+- `security`: SMTP protocol mode, such as `starttls`, `smtps`, or `plain`
+- `username`: SMTP login username
+- `encrypted_password`: encrypted SMTP password
 
 ## mail_account_settings
 

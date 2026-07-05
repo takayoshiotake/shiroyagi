@@ -12,6 +12,21 @@ type Config struct {
 	ClientID      string
 	ClientSecret  string
 	RedirectURI   string
+	Database      DatabaseConfig
+	MailCrypto    MailCryptoConfig
+}
+
+type DatabaseConfig struct {
+	Host     string
+	Port     string
+	Name     string
+	User     string
+	Password string
+}
+
+type MailCryptoConfig struct {
+	KEKFile    string
+	KEKVersion int16
 }
 
 func Load() (Config, error) {
@@ -20,6 +35,16 @@ func Load() (Config, error) {
 		BrowserIssuer: os.Getenv("OIDC_BROWSER_ISSUER"),
 		ClientID:      os.Getenv("OIDC_CLIENT_ID"),
 		RedirectURI:   os.Getenv("OIDC_REDIRECT_URI"),
+		Database: DatabaseConfig{
+			Host: os.Getenv("DATABASE_HOST"),
+			Port: os.Getenv("DATABASE_PORT"),
+			Name: os.Getenv("DATABASE_NAME"),
+			User: os.Getenv("DATABASE_USER"),
+		},
+		MailCrypto: MailCryptoConfig{
+			KEKFile:    os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
+			KEKVersion: 1,
+		},
 	}
 	if cfg.BrowserIssuer == "" {
 		cfg.BrowserIssuer = cfg.Issuer
@@ -35,6 +60,21 @@ func Load() (Config, error) {
 	if cfg.RedirectURI == "" {
 		missing = append(missing, "OIDC_REDIRECT_URI")
 	}
+	if cfg.Database.Host == "" {
+		missing = append(missing, "DATABASE_HOST")
+	}
+	if cfg.Database.Port == "" {
+		missing = append(missing, "DATABASE_PORT")
+	}
+	if cfg.Database.Name == "" {
+		missing = append(missing, "DATABASE_NAME")
+	}
+	if cfg.Database.User == "" {
+		missing = append(missing, "DATABASE_USER")
+	}
+	if cfg.MailCrypto.KEKFile == "" {
+		missing = append(missing, "MAIL_ACCOUNT_KEK_FILE")
+	}
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
@@ -44,6 +84,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.ClientSecret = clientSecret
+
+	databasePassword, err := readSecretFile("DATABASE_PASSWORD_FILE")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Database.Password = databasePassword
 
 	return cfg, nil
 }

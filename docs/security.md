@@ -18,8 +18,9 @@ Do not trust arbitrary issuers.
 Use envelope encryption.
 
 ```text
-mail_password -> DEK -> AES-256-GCM -> encrypted_password_blob
-DEK -> KEK -> wrapped_dek
+IMAP password -> DEK -> AES-256-GCM -> imap_accounts.encrypted_password
+SMTP password -> DEK -> AES-256-GCM -> smtp_accounts.encrypted_password
+DEK           -> KEK -> AES-256-GCM -> wrapped_dek
 ```
 
 KEK is stored outside PostgreSQL.
