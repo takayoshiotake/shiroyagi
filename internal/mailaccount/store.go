@@ -25,6 +25,11 @@ type Account struct {
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	SMTPHost              string
+	SMTPPort              int
+	SMTPSecurity          string
+	SMTPUsername          string
+	EncryptedSMTPPassword []byte
 	WrappedDEK            []byte
 	KEKVersion            int16
 }
@@ -42,6 +47,11 @@ type Detail struct {
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	SMTPHost              string
+	SMTPPort              int
+	SMTPSecurity          string
+	SMTPUsername          string
+	EncryptedSMTPPassword []byte
 	WrappedDEK            []byte
 	KEKVersion            int16
 }
@@ -116,6 +126,11 @@ SELECT id,
        imap_security,
        imap_username,
        encrypted_imap_password,
+       smtp_host,
+       smtp_port,
+       smtp_security,
+       smtp_username,
+       encrypted_smtp_password,
        wrapped_dek,
        kek_version
 FROM mail_accounts
@@ -131,6 +146,11 @@ WHERE user_id = $1
 		&account.IMAPSecurity,
 		&account.IMAPUsername,
 		&account.EncryptedIMAPPassword,
+		&account.SMTPHost,
+		&account.SMTPPort,
+		&account.SMTPSecurity,
+		&account.SMTPUsername,
+		&account.EncryptedSMTPPassword,
 		&account.WrappedDEK,
 		&account.KEKVersion,
 	)
@@ -154,12 +174,17 @@ INSERT INTO mail_accounts (
     imap_security,
     imap_username,
     encrypted_imap_password,
+    smtp_host,
+    smtp_port,
+    smtp_security,
+    smtp_username,
+    encrypted_smtp_password,
     wrapped_dek,
     kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
 )`,
 		account.ID,
 		account.UserID,
@@ -169,6 +194,11 @@ INSERT INTO mail_accounts (
 		account.IMAPSecurity,
 		account.IMAPUsername,
 		account.EncryptedIMAPPassword,
+		account.SMTPHost,
+		account.SMTPPort,
+		account.SMTPSecurity,
+		account.SMTPUsername,
+		account.EncryptedSMTPPassword,
 		account.WrappedDEK,
 		account.KEKVersion,
 	)
@@ -189,6 +219,11 @@ SET imap_host = $3,
     imap_security = $5,
     imap_username = $6,
     encrypted_imap_password = $7,
+    smtp_host = $8,
+    smtp_port = $9,
+    smtp_security = $10,
+    smtp_username = $11,
+    encrypted_smtp_password = $12,
     updated_at = NOW()
 WHERE user_id = $1
   AND id = $2`,
@@ -199,6 +234,11 @@ WHERE user_id = $1
 		account.IMAPSecurity,
 		account.IMAPUsername,
 		account.EncryptedIMAPPassword,
+		account.SMTPHost,
+		account.SMTPPort,
+		account.SMTPSecurity,
+		account.SMTPUsername,
+		account.EncryptedSMTPPassword,
 	)
 	if err != nil {
 		return fmt.Errorf("update mail account: %w", err)

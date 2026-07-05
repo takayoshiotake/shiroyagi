@@ -69,7 +69,7 @@ updated_at
 
 ## mail_accounts
 
-`mail_accounts` stores connection information for IMAP accounts.
+`mail_accounts` stores connection information for IMAP and SMTP accounts.
 
 One Shiroyagi user can have multiple mail accounts.
 Each user can register a given email address only once.
@@ -83,6 +83,11 @@ imap_port
 imap_security
 imap_username
 encrypted_imap_password
+smtp_host
+smtp_port
+smtp_security
+smtp_username
+encrypted_smtp_password
 wrapped_dek
 kek_version
 created_at
@@ -99,12 +104,17 @@ updated_at
 - `imap_security`: IMAP protocol mode, either `imaps` or `imap`
 - `imap_username`: IMAP login username
 - `encrypted_imap_password`: encrypted IMAP password
+- `smtp_host`: SMTP server hostname
+- `smtp_port`: SMTP server port
+- `smtp_security`: SMTP protocol mode, such as `starttls`, `smtps`, or `plain`
+- `smtp_username`: SMTP login username
+- `encrypted_smtp_password`: encrypted SMTP password
 - `wrapped_dek`: DEK encrypted with the current KEK
 - `kek_version`: KEK version used to wrap the DEK
 
 ### Encryption
 
-IMAP passwords are encrypted with envelope encryption.
+IMAP and SMTP passwords are encrypted with envelope encryption.
 
 - Data encryption: AES-256-GCM
 - DEK wrapping: AES-256-GCM

@@ -19,7 +19,7 @@ Use envelope encryption.
 
 ```text
 IMAP password -> DEK -> AES-256-GCM -> encrypted_imap_password
-other secrets -> DEK -> AES-256-GCM -> encrypted_* fields
+SMTP password -> DEK -> AES-256-GCM -> encrypted_smtp_password
 DEK           -> KEK -> AES-256-GCM -> wrapped_dek
 ```
 

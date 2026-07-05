@@ -14,6 +14,12 @@ func TestMailAccountAAD(t *testing.T) {
 	if gotFieldAAD != wantFieldAAD {
 		t.Fatalf("fieldAAD() = %q, want %q", gotFieldAAD, wantFieldAAD)
 	}
+
+	gotSMTPFieldAAD := string(fieldAAD("user-1", "account-1", aadFieldSMTPPassword))
+	wantSMTPFieldAAD := "user-1:account-1:smtp_password"
+	if gotSMTPFieldAAD != wantSMTPFieldAAD {
+		t.Fatalf("fieldAAD() = %q, want %q", gotSMTPFieldAAD, wantSMTPFieldAAD)
+	}
 }
 
 func TestParseMailAccountAction(t *testing.T) {
