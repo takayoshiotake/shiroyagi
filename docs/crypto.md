@@ -7,13 +7,16 @@ Mail account IMAP and SMTP passwords are encrypted with envelope encryption.
 ```text
 IMAP password  -> DEK -> AES-256-GCM -> imap_accounts.encrypted_password
 SMTP password  -> DEK -> AES-256-GCM -> smtp_accounts.encrypted_password
-DEK            -> KEK -> AES-256-GCM -> wrapped_dek
+IMAP DEK       -> KEK -> AES-256-GCM -> imap_accounts.wrapped_dek
+SMTP DEK       -> KEK -> AES-256-GCM -> smtp_accounts.wrapped_dek
 ```
 
-One envelope creates one DEK and one `wrapped_dek`. Multiple plaintext values
-can be encrypted with that DEK, as long as each encrypted blob uses its own GCM
-nonce. `imap_accounts.encrypted_password`, `smtp_accounts.encrypted_password`, and
-`wrapped_dek` use the same binary blob format:
+Each protocol settings record has its own envelope, DEK, `wrapped_dek`, and
+`kek_version`. Multiple plaintext values can be encrypted with a record's DEK,
+as long as each encrypted blob uses its own GCM nonce.
+`imap_accounts.encrypted_password`, `smtp_accounts.encrypted_password`,
+`imap_accounts.wrapped_dek`, and `smtp_accounts.wrapped_dek` use the same
+binary blob format:
 
 ```text
 version | nonce | ciphertext | tag
@@ -33,4 +36,5 @@ name.
 
 The blob contains the encryption format version, so no separate encrypted
 password version column is stored. The KEK version is stored in
-`mail_accounts.kek_version` for future KEK rotation.
+`imap_accounts.kek_version` and `smtp_accounts.kek_version` for future KEK
+rotation.

@@ -20,7 +20,8 @@ Use envelope encryption.
 ```text
 IMAP password -> DEK -> AES-256-GCM -> imap_accounts.encrypted_password
 SMTP password -> DEK -> AES-256-GCM -> smtp_accounts.encrypted_password
-DEK           -> KEK -> AES-256-GCM -> wrapped_dek
+IMAP DEK      -> KEK -> AES-256-GCM -> imap_accounts.wrapped_dek
+SMTP DEK      -> KEK -> AES-256-GCM -> smtp_accounts.wrapped_dek
 ```
 
 KEK is stored outside PostgreSQL.
