@@ -9,11 +9,6 @@ import (
 )
 
 func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	state, err := randomToken()
 	if err != nil {
 		http.Error(w, "failed to create login state", http.StatusInternalServerError)
@@ -39,11 +34,6 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	if oauthErr := r.URL.Query().Get("error"); oauthErr != "" {
 		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
