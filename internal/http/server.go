@@ -36,15 +36,19 @@ func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.requireSession(s.handleIndex))
+
 	mux.HandleFunc("GET /mail-accounts", s.requireSession(s.handleListMailAccounts))
-	mux.HandleFunc("POST /mail-accounts", s.requireSession(s.handleCreateMailAccount))
 	mux.HandleFunc("GET /mail-accounts/new", s.requireSession(s.handleNewMailAccount))
-	mux.HandleFunc("GET /mail-accounts/{id}/edit", s.requireSession(s.handleEditMailAccount))
-	mux.HandleFunc("POST /mail-accounts/{id}/imap", s.requireSession(s.handleSaveIMAPAccount))
-	mux.HandleFunc("POST /mail-accounts/{id}/smtp", s.requireSession(s.handleSaveSMTPAccount))
-	mux.HandleFunc("POST /mail-accounts/{id}/delete-imap", s.requireSession(s.handleDeleteIMAPAccount))
-	mux.HandleFunc("POST /mail-accounts/{id}/delete-smtp", s.requireSession(s.handleDeleteSMTPAccount))
+	mux.HandleFunc("POST /mail-accounts/create", s.requireSession(s.handleCreateMailAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/delete", s.requireSession(s.handleDeleteMailAccount))
+
+	mux.HandleFunc("GET /mail-accounts/{id}/imap/edit", s.requireSession(s.handleEditIMAPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/imap/save", s.requireSession(s.handleSaveIMAPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/imap/delete", s.requireSession(s.handleDeleteIMAPAccount))
+
+	mux.HandleFunc("GET /mail-accounts/{id}/smtp/edit", s.requireSession(s.handleEditSMTPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/smtp/save", s.requireSession(s.handleSaveSMTPAccount))
+	mux.HandleFunc("POST /mail-accounts/{id}/smtp/delete", s.requireSession(s.handleDeleteSMTPAccount))
 
 	mux.HandleFunc("GET /signin", s.handleSignIn)
 	mux.HandleFunc("GET /auth/login", s.handleAuthLogin)
