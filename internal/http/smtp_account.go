@@ -127,6 +127,8 @@ func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encryptedPassword := account.EncryptedSMTPPassword
+	wrappedDEK := account.SMTPWrappedDEK
+	kekVersion := account.SMTPKEKVersion
 	if form.SMTPPassword != "" {
 		kek, err := os.ReadFile(s.mailCrypto.KEKFile)
 		if err != nil {
@@ -134,16 +136,33 @@ func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		decrypter, err := crypto.OpenEnvelope(kek, crypto.Envelope{
-			WrappedDEK: account.WrappedDEK,
-			KEKVersion: account.KEKVersion,
-		}, envelopeAAD(session.Subject, account.ID))
-		if err != nil {
-			log.Printf("open mail account envelope: %v", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
+		var encrypter interface {
+			EncryptWithAAD([]byte, []byte) ([]byte, error)
 		}
-		encryptedPassword, err = decrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(session.Subject, account.ID, aadFieldSMTPPassword))
+		if account.HasSMTP {
+			decrypter, err := crypto.OpenEnvelope(kek, crypto.Envelope{
+				WrappedDEK: account.SMTPWrappedDEK,
+				KEKVersion: account.SMTPKEKVersion,
+			}, envelopeAAD(session.Subject, account.ID))
+			if err != nil {
+				log.Printf("open smtp account envelope: %v", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			encrypter = decrypter
+		} else {
+			newEnvelope, err := crypto.NewEnvelope(kek, s.mailCrypto.KEKVersion, envelopeAAD(session.Subject, account.ID))
+			if err != nil {
+				log.Printf("create smtp account envelope: %v", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			envelope := newEnvelope.Envelope()
+			wrappedDEK = envelope.WrappedDEK
+			kekVersion = envelope.KEKVersion
+			encrypter = newEnvelope
+		}
+		encryptedPassword, err = encrypter.EncryptWithAAD([]byte(form.SMTPPassword), fieldAAD(session.Subject, account.ID, aadFieldSMTPPassword))
 		if err != nil {
 			log.Printf("encrypt smtp password: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -160,6 +179,8 @@ func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request) {
 		SMTPSecurity:          form.SMTPSecurity,
 		SMTPUsername:          form.SMTPUsername,
 		EncryptedSMTPPassword: encryptedPassword,
+		SMTPWrappedDEK:        wrappedDEK,
+		SMTPKEKVersion:        kekVersion,
 	}); err != nil {
 		log.Printf("save smtp account: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)

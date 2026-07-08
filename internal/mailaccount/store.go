@@ -26,14 +26,16 @@ type Account struct {
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	IMAPWrappedDEK        []byte
+	IMAPKEKVersion        int16
 	HasSMTP               bool
 	SMTPHost              string
 	SMTPPort              int
 	SMTPSecurity          string
 	SMTPUsername          string
 	EncryptedSMTPPassword []byte
-	WrappedDEK            []byte
-	KEKVersion            int16
+	SMTPWrappedDEK        []byte
+	SMTPKEKVersion        int16
 }
 
 type Summary struct {
@@ -50,14 +52,16 @@ type Detail struct {
 	IMAPSecurity          string
 	IMAPUsername          string
 	EncryptedIMAPPassword []byte
+	IMAPWrappedDEK        []byte
+	IMAPKEKVersion        int16
 	HasSMTP               bool
 	SMTPHost              string
 	SMTPPort              int
 	SMTPSecurity          string
 	SMTPUsername          string
 	EncryptedSMTPPassword []byte
-	WrappedDEK            []byte
-	KEKVersion            int16
+	SMTPWrappedDEK        []byte
+	SMTPKEKVersion        int16
 }
 
 func NewStore(db *sql.DB) *Store {
@@ -124,8 +128,10 @@ func (s *Store) Get(ctx context.Context, userID, id string) (Detail, bool, error
 	var account Detail
 	var imapHost, imapSecurity, imapUsername sql.NullString
 	var imapPort sql.NullInt64
+	var imapKEKVersion sql.NullInt64
 	var smtpHost, smtpSecurity, smtpUsername sql.NullString
 	var smtpPort sql.NullInt64
+	var smtpKEKVersion sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
 SELECT ma.id,
        ma.email_address,
@@ -134,13 +140,15 @@ SELECT ma.id,
        ia.security,
        ia.username,
        ia.encrypted_password,
+       ia.wrapped_dek,
+       ia.kek_version,
        sa.host,
        sa.port,
        sa.security,
        sa.username,
        sa.encrypted_password,
-       ma.wrapped_dek,
-       ma.kek_version
+       sa.wrapped_dek,
+       sa.kek_version
 FROM mail_accounts ma
 LEFT JOIN imap_accounts ia ON ia.mail_account_id = ma.id
 LEFT JOIN smtp_accounts sa ON sa.mail_account_id = ma.id
@@ -156,13 +164,15 @@ WHERE ma.user_id = $1
 		&imapSecurity,
 		&imapUsername,
 		&account.EncryptedIMAPPassword,
+		&account.IMAPWrappedDEK,
+		&imapKEKVersion,
 		&smtpHost,
 		&smtpPort,
 		&smtpSecurity,
 		&smtpUsername,
 		&account.EncryptedSMTPPassword,
-		&account.WrappedDEK,
-		&account.KEKVersion,
+		&account.SMTPWrappedDEK,
+		&smtpKEKVersion,
 	)
 	if err == nil {
 		account.HasIMAP = imapHost.Valid
@@ -172,6 +182,9 @@ WHERE ma.user_id = $1
 		}
 		account.IMAPSecurity = imapSecurity.String
 		account.IMAPUsername = imapUsername.String
+		if imapKEKVersion.Valid {
+			account.IMAPKEKVersion = int16(imapKEKVersion.Int64)
+		}
 		account.HasSMTP = smtpHost.Valid
 		account.SMTPHost = smtpHost.String
 		if smtpPort.Valid {
@@ -179,6 +192,9 @@ WHERE ma.user_id = $1
 		}
 		account.SMTPSecurity = smtpSecurity.String
 		account.SMTPUsername = smtpUsername.String
+		if smtpKEKVersion.Valid {
+			account.SMTPKEKVersion = int16(smtpKEKVersion.Int64)
+		}
 		return account, true, nil
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -201,18 +217,14 @@ INSERT INTO mail_accounts (
     id,
     user_id,
     email_address,
-    wrapped_dek,
-    kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NOW(), NOW()
+    $1, $2, $3, NOW(), NOW()
 )`,
 		account.ID,
 		account.UserID,
 		account.EmailAddress,
-		account.WrappedDEK,
-		account.KEKVersion,
 	)
 	if err != nil {
 		if isUniqueViolation(err, "uk_mail_accounts_user_id_email_address") {
@@ -408,10 +420,12 @@ INSERT INTO imap_accounts (
     security,
     username,
     encrypted_password,
+    wrapped_dek,
+    kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )`,
 		account.ID,
 		account.IMAPHost,
@@ -419,6 +433,8 @@ INSERT INTO imap_accounts (
 		account.IMAPSecurity,
 		account.IMAPUsername,
 		account.EncryptedIMAPPassword,
+		account.IMAPWrappedDEK,
+		account.IMAPKEKVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("insert imap account: %w", err)
@@ -435,10 +451,12 @@ INSERT INTO smtp_accounts (
     security,
     username,
     encrypted_password,
+    wrapped_dek,
+    kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )`,
 		account.ID,
 		account.SMTPHost,
@@ -446,6 +464,8 @@ INSERT INTO smtp_accounts (
 		account.SMTPSecurity,
 		account.SMTPUsername,
 		account.EncryptedSMTPPassword,
+		account.SMTPWrappedDEK,
+		account.SMTPKEKVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("insert smtp account: %w", err)
@@ -462,10 +482,12 @@ INSERT INTO imap_accounts (
     security,
     username,
     encrypted_password,
+    wrapped_dek,
+    kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )
 ON CONFLICT (mail_account_id)
 DO UPDATE SET
@@ -474,6 +496,8 @@ DO UPDATE SET
     security = EXCLUDED.security,
     username = EXCLUDED.username,
     encrypted_password = EXCLUDED.encrypted_password,
+    wrapped_dek = EXCLUDED.wrapped_dek,
+    kek_version = EXCLUDED.kek_version,
     updated_at = NOW()`,
 		account.ID,
 		account.IMAPHost,
@@ -481,6 +505,8 @@ DO UPDATE SET
 		account.IMAPSecurity,
 		account.IMAPUsername,
 		account.EncryptedIMAPPassword,
+		account.IMAPWrappedDEK,
+		account.IMAPKEKVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert imap account: %w", err)
@@ -497,10 +523,12 @@ INSERT INTO smtp_accounts (
     security,
     username,
     encrypted_password,
+    wrapped_dek,
+    kek_version,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )
 ON CONFLICT (mail_account_id)
 DO UPDATE SET
@@ -509,6 +537,8 @@ DO UPDATE SET
     security = EXCLUDED.security,
     username = EXCLUDED.username,
     encrypted_password = EXCLUDED.encrypted_password,
+    wrapped_dek = EXCLUDED.wrapped_dek,
+    kek_version = EXCLUDED.kek_version,
     updated_at = NOW()`,
 		account.ID,
 		account.SMTPHost,
@@ -516,6 +546,8 @@ DO UPDATE SET
 		account.SMTPSecurity,
 		account.SMTPUsername,
 		account.EncryptedSMTPPassword,
+		account.SMTPWrappedDEK,
+		account.SMTPKEKVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert smtp account: %w", err)

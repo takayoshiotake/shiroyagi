@@ -5,9 +5,7 @@ import (
 	"html"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/takayoshiotake/shiroyagi/internal/crypto"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
 
@@ -106,13 +104,6 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 
 	session, _ := sessionFromContext(r.Context())
 
-	kek, err := os.ReadFile(s.mailCrypto.KEKFile)
-	if err != nil {
-		log.Printf("read mail account KEK: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	found, err := s.accounts.ExistsByUserAndEmail(r.Context(), session.Subject, emailAddress)
 	if err != nil {
 		log.Printf("check mail account existence: %v", err)
@@ -124,7 +115,7 @@ func (s *Server) handleCreateMailAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if _, err := s.insertMailAccount(r, kek, session.Subject, createMailAccountForm{EmailAddress: emailAddress}); err != nil {
+	if _, err := s.insertMailAccount(r, session.Subject, createMailAccountForm{EmailAddress: emailAddress}); err != nil {
 		log.Printf("insert mail account: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -145,24 +136,16 @@ func (s *Server) handleDeleteMailAccount(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/mail-accounts", http.StatusSeeOther)
 }
 
-func (s *Server) insertMailAccount(r *http.Request, kek []byte, userID string, form createMailAccountForm) (string, error) {
+func (s *Server) insertMailAccount(r *http.Request, userID string, form createMailAccountForm) (string, error) {
 	accountID, err := mailaccount.NewID()
 	if err != nil {
 		return "", fmt.Errorf("create account id: %w", err)
 	}
 
-	encrypter, err := crypto.NewEnvelope(kek, s.mailCrypto.KEKVersion, envelopeAAD(userID, accountID))
-	if err != nil {
-		return "", fmt.Errorf("create envelope: %w", err)
-	}
-	envelope := encrypter.Envelope()
-
 	if err := s.accounts.Insert(r.Context(), mailaccount.Account{
 		ID:           accountID,
 		UserID:       userID,
 		EmailAddress: form.EmailAddress,
-		WrappedDEK:   envelope.WrappedDEK,
-		KEKVersion:   envelope.KEKVersion,
 	}); err != nil {
 		return "", fmt.Errorf("insert account: %w", err)
 	}

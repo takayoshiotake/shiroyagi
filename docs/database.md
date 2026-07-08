@@ -4,7 +4,7 @@ Shiroyagi separates application users from mail accounts.
 
 - `users`: Shiroyagi application users authenticated by Keycloak/OIDC
 - `user_preferences`: user-wide UI and behavior preferences
-- `mail_accounts`: IMAP account connection credentials
+- `mail_accounts`: email-address-level parent records
 - `mail_account_settings`: per-mail-account display and sending settings
 - `schema_migrations`: applied database migration versions
 
@@ -69,8 +69,7 @@ updated_at
 
 ## mail_accounts
 
-`mail_accounts` stores the email-address-level parent record and encryption
-envelope for IMAP and SMTP child settings.
+`mail_accounts` stores the email-address-level parent record.
 
 One Shiroyagi user can have multiple mail accounts.
 Each user can register a given email address only once.
@@ -82,8 +81,6 @@ configured.
 id
 user_id
 email_address
-wrapped_dek
-kek_version
 created_at
 updated_at
 ```
@@ -93,12 +90,11 @@ updated_at
 - `id`: mail account ID
 - `user_id`: references `users.id`
 - `email_address`: email address for this account
-- `wrapped_dek`: DEK encrypted with the current KEK
-- `kek_version`: KEK version used to wrap the DEK
 
 ### Encryption
 
-IMAP and SMTP passwords are encrypted with envelope encryption.
+IMAP and SMTP passwords are encrypted with envelope encryption. The envelope is
+stored on each protocol child record that contains encrypted data.
 
 - Data encryption: AES-256-GCM
 - DEK wrapping: AES-256-GCM
@@ -122,6 +118,8 @@ port
 security
 username
 encrypted_password
+wrapped_dek
+kek_version
 created_at
 updated_at
 ```
@@ -134,6 +132,8 @@ updated_at
 - `security`: IMAP protocol mode, either `imaps` or `imap`
 - `username`: IMAP login username
 - `encrypted_password`: encrypted IMAP password
+- `wrapped_dek`: IMAP DEK encrypted with the current KEK
+- `kek_version`: KEK version used to wrap the IMAP DEK
 
 ## smtp_accounts
 
@@ -146,6 +146,8 @@ port
 security
 username
 encrypted_password
+wrapped_dek
+kek_version
 created_at
 updated_at
 ```
@@ -158,6 +160,8 @@ updated_at
 - `security`: SMTP protocol mode, such as `starttls`, `smtps`, or `plain`
 - `username`: SMTP login username
 - `encrypted_password`: encrypted SMTP password
+- `wrapped_dek`: SMTP DEK encrypted with the current KEK
+- `kek_version`: KEK version used to wrap the SMTP DEK
 
 ## mail_account_settings
 
