@@ -82,11 +82,6 @@ func (s *Server) handleEditSMTPAccount(w http.ResponseWriter, r *http.Request) {
     <button type="submit">Remove SMTP</button>
   </form>
 
-  <form method="post" action="/mail-accounts/%s/delete">
-    <button type="submit">Delete mail account</button>
-  </form>
-
-  <p><a href="/mail-accounts/%s/imap/edit">IMAP settings</a></p>
   <p><a href="/mail-accounts">Back</a></p>
 </body>
 </html>`,
@@ -98,8 +93,6 @@ func (s *Server) handleEditSMTPAccount(w http.ResponseWriter, r *http.Request) {
 		selected(account.SMTPSecurity == "smtps"),
 		selected(account.SMTPSecurity == "plain"),
 		html.EscapeString(account.SMTPUsername),
-		html.EscapeString(account.ID),
-		html.EscapeString(account.ID),
 		html.EscapeString(account.ID),
 	)
 }

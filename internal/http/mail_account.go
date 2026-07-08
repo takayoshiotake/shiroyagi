@@ -45,8 +45,16 @@ func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) 
   <ul>`)
 		for _, account := range accounts {
 			_, _ = fmt.Fprintf(w, `
-    <li>%s <a href="/mail-accounts/%s/imap/edit">IMAP</a> <a href="/mail-accounts/%s/smtp/edit">SMTP</a></li>`,
+    <li>
+      %s
+      <a href="/mail-accounts/%s/imap/edit">IMAP</a>
+      <a href="/mail-accounts/%s/smtp/edit">SMTP</a>
+      <form method="post" action="/mail-accounts/%s/delete">
+        <button type="submit">Delete</button>
+      </form>
+    </li>`,
 				html.EscapeString(account.EmailAddress),
+				html.EscapeString(account.ID),
 				html.EscapeString(account.ID),
 				html.EscapeString(account.ID),
 			)

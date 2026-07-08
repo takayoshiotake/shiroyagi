@@ -46,7 +46,6 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
     %s
   </p>
 
-  <h2>IMAP settings</h2>
   <form method="post" action="/mail-accounts/%s/imap/save">
     <p>
       <label>IMAP Host<br>
@@ -82,7 +81,6 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
     <button type="submit">Remove IMAP</button>
   </form>
 
-  <p><a href="/mail-accounts/%s/smtp/edit">SMTP settings</a></p>
   <p><a href="/mail-accounts">Back</a></p>
 </body>
 </html>`,
@@ -93,7 +91,6 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
 		selected(account.IMAPSecurity == "imaps"),
 		selected(account.IMAPSecurity == "imap"),
 		html.EscapeString(account.IMAPUsername),
-		html.EscapeString(account.ID),
 		html.EscapeString(account.ID),
 	)
 }
