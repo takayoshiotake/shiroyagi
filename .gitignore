@@ -1,7 +1,32 @@
-secrets/dev/*
-!secrets/dev/README.md
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Logs and temporary files
 .DS_Store
 *.log
 tmp/
+
+# Development secrets
+secrets/dev/*
+!secrets/dev/README.md
+
+# Shiroyagi build artifacts
 shiroyagi
 shiroyagi-build-info.txt
