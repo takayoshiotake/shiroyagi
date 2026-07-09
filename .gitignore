@@ -3,3 +3,5 @@ secrets/dev/*
 .DS_Store
 *.log
 tmp/
+shiroyagi
+shiroyagi-build-info.txt

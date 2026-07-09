@@ -70,3 +70,12 @@ Login check:
 ```text
 http://localhost:8080/signin
 ```
+
+## Build
+
+```bash
+make build
+```
+
+This creates the `shiroyagi` binary and writes Go module, dependency, build
+setting, and VCS metadata to `shiroyagi-build-info.txt`.
