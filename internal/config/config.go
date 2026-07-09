@@ -3,8 +3,11 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
+
+const defaultMailAccountKEKVersion int16 = 1
 
 type Config struct {
 	Issuer        string
@@ -42,13 +45,18 @@ func Load() (Config, error) {
 			User: os.Getenv("DATABASE_USER"),
 		},
 		MailCrypto: MailCryptoConfig{
-			KEKFile:    os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
-			KEKVersion: 1,
+			KEKFile: os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
 		},
 	}
 	if cfg.BrowserIssuer == "" {
 		cfg.BrowserIssuer = cfg.Issuer
 	}
+
+	kekVersion, err := readKEKVersion()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.MailCrypto.KEKVersion = kekVersion
 
 	var missing []string
 	if cfg.Issuer == "" {
@@ -92,6 +100,18 @@ func Load() (Config, error) {
 	cfg.Database.Password = databasePassword
 
 	return cfg, nil
+}
+
+func readKEKVersion() (int16, error) {
+	value := os.Getenv("MAIL_ACCOUNT_KEK_VERSION")
+	if value == "" {
+		return defaultMailAccountKEKVersion, nil
+	}
+	version, err := strconv.ParseInt(value, 10, 16)
+	if err != nil || version <= 0 {
+		return 0, fmt.Errorf("invalid MAIL_ACCOUNT_KEK_VERSION: must be a positive 16-bit integer")
+	}
+	return int16(version), nil
 }
 
 func readSecretFile(envName string) (string, error) {

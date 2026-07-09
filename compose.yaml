@@ -13,6 +13,7 @@ services:
       DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
 
       MAIL_ACCOUNT_KEK_FILE: /run/secrets/mail_account_kek
+      MAIL_ACCOUNT_KEK_VERSION: "1"
 
       OIDC_ISSUER: http://keycloak:8080/realms/dev
       OIDC_BROWSER_ISSUER: http://localhost:8081/realms/dev

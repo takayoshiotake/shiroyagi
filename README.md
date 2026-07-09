@@ -33,8 +33,12 @@ DATABASE_NAME=shiroyagi \
 DATABASE_USER=shiroyagi \
 DATABASE_PASSWORD_FILE=secrets/dev/postgres_password \
 MAIL_ACCOUNT_KEK_FILE=secrets/dev/mail_account_kek \
+MAIL_ACCOUNT_KEK_VERSION=1 \
 go run ./cmd/shiroyagi
 ```
+
+`MAIL_ACCOUNT_KEK_VERSION` selects the KEK version used for newly saved mail
+account secrets. Development uses `1`.
 
 Keycloak imports the development realm automatically on startup. The `dev`
 realm, `shiroyagi` OIDC client, and `dev` user are created from
