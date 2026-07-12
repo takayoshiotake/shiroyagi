@@ -1,0 +1,12 @@
+Return-Path: <ops@example.test>
+Delivered-To: dev@example.test
+Date: Tue, 14 Jul 2026 09:30:00 +0900
+From: Ops <ops@example.test>
+To: dev@example.test
+Subject: Base64 body fixture
+Message-ID: <fixture-003@example.test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+VGhpcyBib2R5IGlzIGJhc2U2NCBlbmNvZGVkLgo=

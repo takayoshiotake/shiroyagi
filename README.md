@@ -71,6 +71,22 @@ Login check:
 http://localhost:8080/signin
 ```
 
+IMAP check:
+
+1. Sign in and open `Mail accounts`.
+2. Create a mail account.
+3. Open `IMAP` for that account and save the IMAP connection settings.
+   Use `dev@example.test` as the email address and IMAP username. Use `dev` as
+   the IMAP password.
+   When the Go app is run locally against the development services, use
+   `localhost`, port `2143`, and protocol `IMAP` for the development Dovecot
+   service. When the app runs in compose, use `dovecot`, port `31143`, and
+   protocol `IMAP`.
+4. Open `Inbox` from the mail account list.
+
+The first IMAP link opens `INBOX` and fetches the latest 100 messages.
+Opening a message fetches and displays its inline text body.
+
 ## Build
 
 ```bash

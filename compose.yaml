@@ -21,13 +21,6 @@ services:
       OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
       OIDC_REDIRECT_URI: http://localhost:8080/auth/callback
 
-      IMAP_HOST: dovecot
-      IMAP_PORT: "993"
-      IMAP_TLS: "true"
-
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_TLS: "false"
     secrets:
       - postgres_password
       - mail_account_kek

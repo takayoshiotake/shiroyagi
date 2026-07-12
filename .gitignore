@@ -8,6 +8,10 @@
 # Test binary, built with `go test -c`
 *.test
 
+# Keep Dovecot fixtures that use the reserved example.test domain.
+!dev/dovecot/fixtures/
+!dev/dovecot/fixtures/**
+
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*

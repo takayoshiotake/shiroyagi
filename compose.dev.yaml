@@ -24,12 +24,29 @@ services:
 
   dovecot:
     image: dovecot/dovecot:latest
+    depends_on:
+      dovecot-seed:
+        condition: service_completed_successfully
     ports:
-      - "2993:993"
-      - "2143:143"
+      - "2143:31143"
     volumes:
       - dovecot_data:/srv/mail
       - ./dev/dovecot:/etc/dovecot:ro
+    networks:
+      - app
+
+  dovecot-seed:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /srv/mail/dev@example.test/Maildir/cur /srv/mail/dev@example.test/Maildir/new /srv/mail/dev@example.test/Maildir/tmp
+        cp -n /fixtures/dev@example.test/Maildir/new/* /srv/mail/dev@example.test/Maildir/new/ 2>/dev/null || true
+        chmod -R 0777 /srv/mail
+    volumes:
+      - dovecot_data:/srv/mail
+      - ./dev/dovecot/fixtures:/fixtures:ro
     networks:
       - app
 
