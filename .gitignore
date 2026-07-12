@@ -34,3 +34,4 @@ secrets/dev/*
 # Shiroyagi build artifacts
 shiroyagi
 shiroyagi-build-info.txt
+dist/
