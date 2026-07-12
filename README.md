@@ -95,3 +95,10 @@ make build
 
 This creates the `shiroyagi` binary and writes Go module, dependency, build
 setting, and VCS metadata to `shiroyagi-build-info.txt`.
+The binary version defaults to `git describe --tags --always --dirty`.
+Release builds can set it explicitly:
+
+```bash
+make build SHIROYAGI_VERSION=v0.1.0
+./shiroyagi --version
+```
