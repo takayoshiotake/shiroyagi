@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/takayoshiotake/shiroyagi/internal/auth"
@@ -11,10 +13,17 @@ import (
 	"github.com/takayoshiotake/shiroyagi/internal/db"
 	httpserver "github.com/takayoshiotake/shiroyagi/internal/http"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
+	"github.com/takayoshiotake/shiroyagi/internal/version"
 )
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println(version.String())
+		return
+	}
+
 	ctx := context.Background()
+	log.Printf("start %s", version.String())
 
 	cfg, err := config.Load()
 	if err != nil {
