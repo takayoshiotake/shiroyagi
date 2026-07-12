@@ -93,12 +93,34 @@ Opening a message fetches and displays its inline text body.
 make build
 ```
 
-This creates the `shiroyagi` binary and writes Go module, dependency, build
-setting, and VCS metadata to `shiroyagi-build-info.txt`.
+This creates the `shiroyagi` binary and writes Go module, dependency, build setting, and VCS metadata to `shiroyagi-build-info.txt`.
+
 The binary version defaults to `git describe --tags --always --dirty`.
-Release builds can set it explicitly:
 
 ```bash
-make build SHIROYAGI_VERSION=v0.1.0
 ./shiroyagi --version
 ```
+
+## Release build
+
+To create a release archive for the current operating system and architecture:
+
+```bash
+make release
+```
+
+To build an archive for a specific target platform, set `GOOS` and `GOARCH`:
+
+```bash
+make release GOOS=linux GOARCH=amd64
+```
+
+Generated archives and their SHA-256 checksums are written to `dist/`:
+
+```text
+dist/
+├── shiroyagi_v0.1.0_linux_amd64.tar.gz
+└── checksums.txt
+```
+
+Release binaries are built with `CGO_ENABLED=0` to avoid runtime dependencies on the target system’s C library, such as `glibc`.
