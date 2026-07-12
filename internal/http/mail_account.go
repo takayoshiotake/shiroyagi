@@ -5,6 +5,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
@@ -45,6 +46,7 @@ func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) 
 			_, _ = fmt.Fprintf(w, `
     <li>
       %s
+      <a href="/mail-accounts/%s/mailboxes/%s">Inbox</a>
       <a href="/mail-accounts/%s/imap/edit">IMAP</a>
       <a href="/mail-accounts/%s/smtp/edit">SMTP</a>
       <form method="post" action="/mail-accounts/%s/delete">
@@ -52,6 +54,8 @@ func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) 
       </form>
     </li>`,
 				html.EscapeString(account.EmailAddress),
+				html.EscapeString(account.ID),
+				url.PathEscape(defaultMailbox),
 				html.EscapeString(account.ID),
 				html.EscapeString(account.ID),
 				html.EscapeString(account.ID),

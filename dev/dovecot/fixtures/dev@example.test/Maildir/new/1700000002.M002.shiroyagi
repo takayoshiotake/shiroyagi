@@ -1,0 +1,23 @@
+Return-Path: <notifications@example.test>
+Delivered-To: dev@example.test
+Date: Tue, 14 Jul 2026 09:15:00 +0900
+From: Notifications <notifications@example.test>
+To: dev@example.test
+Subject: Multipart fixture
+Message-ID: <fixture-002@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="shiroyagi-fixture-002"
+
+--shiroyagi-fixture-002
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+This message has both plain text and HTML parts.
+
+--shiroyagi-fixture-002
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<p>This message has both plain text and HTML parts.</p>
+
+--shiroyagi-fixture-002--
