@@ -41,6 +41,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /mail-accounts/new", s.requireSession(s.handleNewMailAccount))
 	mux.HandleFunc("POST /mail-accounts/create", s.requireSession(s.handleCreateMailAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/delete", s.requireSession(s.handleDeleteMailAccount))
+	mux.HandleFunc("GET /mail-accounts/{id}/send", s.requireSession(s.handleNewTestMessage))
+	mux.HandleFunc("POST /mail-accounts/{id}/send", s.requireSession(s.handleSendTestMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}", s.requireSession(s.handleMailbox))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}", s.requireSession(s.handleMessage))
 

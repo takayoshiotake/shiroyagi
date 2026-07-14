@@ -1,0 +1,201 @@
+package smtp
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"net"
+	"net/mail"
+	stdsmtp "net/smtp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	SecurityPlain    = "plain"
+	SecuritySTARTTLS = "starttls"
+	SecuritySMTPS    = "smtps"
+)
+
+type Account struct {
+	Host     string
+	Port     int
+	Security string
+	Username string
+	Password string
+}
+
+type Message struct {
+	From    string
+	To      string
+	Subject string
+	Body    string
+}
+
+type OperationError struct {
+	Op       string
+	Host     string
+	Port     int
+	Security string
+	Err      error
+}
+
+func (e *OperationError) Error() string {
+	location := net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
+	return fmt.Sprintf("%s smtp host=%s security=%s: %v", e.Op, location, e.Security, e.Err)
+}
+
+func (e *OperationError) Unwrap() error {
+	return e.Err
+}
+
+func Send(ctx context.Context, account Account, message Message) error {
+	if err := validateMessage(message); err != nil {
+		return wrapError("validate smtp message", account, err)
+	}
+
+	client, err := connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if account.Username == "" {
+		return wrapError("validate smtp auth", account, errors.New("username is required"))
+	}
+	if account.Password == "" {
+		return wrapError("validate smtp auth", account, errors.New("password is required"))
+	}
+	auth := stdsmtp.PlainAuth("", account.Username, account.Password, account.Host)
+	if err := client.Auth(auth); err != nil {
+		return wrapError("authenticate smtp server", account, err)
+	}
+
+	if err := client.Mail(message.From); err != nil {
+		return wrapError("set smtp sender", account, err)
+	}
+	if err := client.Rcpt(message.To); err != nil {
+		return wrapError("set smtp recipient", account, err)
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return wrapError("start smtp data", account, err)
+	}
+	if _, err := writer.Write(buildMessage(message)); err != nil {
+		_ = writer.Close()
+		return wrapError("write smtp data", account, err)
+	}
+	if err := writer.Close(); err != nil {
+		return wrapError("finish smtp data", account, err)
+	}
+	if err := client.Quit(); err != nil {
+		return wrapError("quit smtp server", account, err)
+	}
+	return nil
+}
+
+func connect(ctx context.Context, account Account) (*stdsmtp.Client, error) {
+	select {
+	case <-ctx.Done():
+		return nil, wrapError("prepare smtp request", account, ctx.Err())
+	default:
+	}
+
+	address := net.JoinHostPort(account.Host, strconv.Itoa(account.Port))
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	switch account.Security {
+	case SecuritySMTPS:
+		tlsDialer := tls.Dialer{
+			NetDialer: dialer,
+			Config:    &tls.Config{ServerName: account.Host},
+		}
+		conn, err := tlsDialer.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return nil, wrapError("connect smtp server", account, err)
+		}
+		client, err := stdsmtp.NewClient(conn, account.Host)
+		if err != nil {
+			_ = conn.Close()
+			return nil, wrapError("connect smtp server", account, err)
+		}
+		return client, nil
+	case SecurityPlain, SecuritySTARTTLS:
+		conn, err := dialer.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return nil, wrapError("connect smtp server", account, err)
+		}
+		client, err := stdsmtp.NewClient(conn, account.Host)
+		if err != nil {
+			_ = conn.Close()
+			return nil, wrapError("connect smtp server", account, err)
+		}
+		if account.Security == SecuritySTARTTLS {
+			if ok, _ := client.Extension("STARTTLS"); !ok {
+				_ = client.Close()
+				return nil, wrapError("start smtp tls", account, errors.New("server does not advertise STARTTLS"))
+			}
+			if err := client.StartTLS(&tls.Config{ServerName: account.Host}); err != nil {
+				_ = client.Close()
+				return nil, wrapError("start smtp tls", account, err)
+			}
+		}
+		return client, nil
+	default:
+		return nil, wrapError("validate smtp security", account, fmt.Errorf("unsupported value %q", account.Security))
+	}
+}
+
+func buildMessage(message Message) []byte {
+	headers := []string{
+		"From: " + message.From,
+		"To: " + message.To,
+		"Subject: " + sanitizeHeaderValue(message.Subject),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+		"Content-Transfer-Encoding: 8bit",
+	}
+	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + normalizeBody(message.Body))
+}
+
+func normalizeBody(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\r", "\n")
+	return strings.ReplaceAll(body, "\n", "\r\n")
+}
+
+func validateMessage(message Message) error {
+	if message.From == "" {
+		return errors.New("from is required")
+	}
+	if _, err := mail.ParseAddress(message.From); err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	if message.To == "" {
+		return errors.New("to is required")
+	}
+	if _, err := mail.ParseAddress(message.To); err != nil {
+		return fmt.Errorf("invalid to address: %w", err)
+	}
+	return nil
+}
+
+func sanitizeHeaderValue(value string) string {
+	replacer := strings.NewReplacer("\r", " ", "\n", " ")
+	return replacer.Replace(value)
+}
+
+func wrapError(op string, account Account, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &OperationError{
+		Op:       op,
+		Host:     account.Host,
+		Port:     account.Port,
+		Security: account.Security,
+		Err:      err,
+	}
+}
