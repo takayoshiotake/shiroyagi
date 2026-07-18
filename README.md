@@ -99,6 +99,20 @@ IMAP check:
 The first IMAP link opens `INBOX` and fetches the latest 100 messages.
 Opening a message fetches and displays its inline text body.
 
+SMTP check:
+
+1. Sign in and open `Mail accounts`.
+2. Create or reuse a mail account.
+3. Open `SMTP` for that account and save the SMTP connection settings.
+   Use protocol `Plain`, SMTP username `dev@example.test`, and SMTP password
+   `dev`.
+   When the Go app is run locally against the development services, use
+   `localhost` and port `1025`. When the app runs in compose, use `mailpit`
+   and port `1025`.
+4. Open `Send test` from the mail account list.
+5. Enter a recipient, subject, and body, then send the message.
+6. Open Mailpit at http://localhost:8025 and confirm the message.
+
 ## Build
 
 ```bash
