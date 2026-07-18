@@ -113,6 +113,43 @@ SMTP check:
 5. Enter a recipient, subject, and body, then send the message.
 6. Open Mailpit at http://localhost:8025 and confirm the message.
 
+Reply check:
+
+1. Configure both IMAP and SMTP for the same mail account.
+2. Open `Inbox` from the mail account list.
+3. Open a fixture message and click `Reply`.
+4. Confirm that `To` is prefilled from `Reply-To` or `From`, and that the
+   subject is prefixed with `Re:`.
+5. Send the reply.
+6. Open Mailpit at http://localhost:8025 and confirm that the message has
+   `In-Reply-To` and `References` headers for the original message.
+7. Confirm that the original message has the IMAP `\Answered` flag:
+
+   ```bash
+   podman compose -f compose.yaml -f compose.dev.yaml exec dovecot \
+     doveadm fetch -u dev@example.test 'uid flags hdr.message-id' mailbox INBOX all
+   ```
+
+   The replied message should include `\Answered` in its `flags` output.
+   The Shiroyagi inbox list should also show `Replied` in the message status
+   column.
+
+Reply all check:
+
+1. Open the `Reply all fixture` message in `Inbox` and click `Reply all`.
+2. On the message detail page, confirm that the original `To` and `Cc`
+   headers are visible.
+3. Confirm that the reply form `To` is `alice@example.test`.
+4. Confirm that the reply form `Cc` is `bob@example.test, carol@example.test`.
+5. Send the reply and confirm it in Mailpit.
+
+If an existing Dovecot development volume was created before the fixture was
+added, recreate or reseed the volume so the new fixture message is copied.
+
+After a reply is sent, Shiroyagi attempts to add the IMAP `\Answered` flag to
+the original message. If the SMTP send succeeds but flag update fails, the
+reply remains sent and the result page shows a warning.
+
 ## Build
 
 ```bash

@@ -26,6 +26,42 @@ func TestBuildMessage(t *testing.T) {
 	}
 }
 
+func TestBuildMessageAddsReplyHeaders(t *testing.T) {
+	msg := buildMessage(Message{
+		From:       "sender@example.test",
+		To:         "recipient@example.test",
+		Cc:         "copy@example.test",
+		Subject:    "Re: Hello",
+		Body:       "reply",
+		InReplyTo:  "<original@example.test>",
+		References: "<root@example.test> <original@example.test>",
+	})
+	got := string(msg)
+	for _, want := range []string{
+		"Cc: copy@example.test\r\n",
+		"In-Reply-To: <original@example.test>\r\n",
+		"References: <root@example.test> <original@example.test>\r\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("message missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestMessageRecipientsIncludesCc(t *testing.T) {
+	got, err := messageRecipients(Message{
+		To: "to@example.test",
+		Cc: "Copy One <copy1@example.test>, copy2@example.test",
+	})
+	if err != nil {
+		t.Fatalf("messageRecipients() error = %v", err)
+	}
+	want := []string{"to@example.test", "copy1@example.test", "copy2@example.test"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("messageRecipients() = %#v, want %#v", got, want)
+	}
+}
+
 func TestNormalizeBody(t *testing.T) {
 	got := normalizeBody("a\r\nb\rc\nd")
 	want := "a\r\nb\r\nc\r\nd"

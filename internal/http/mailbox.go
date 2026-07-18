@@ -78,7 +78,7 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, `
   <table>
     <thead>
-      <tr><th>Date</th><th>From</th><th>Subject</th><th>Size</th></tr>
+      <tr><th>Status</th><th>Date</th><th>From</th><th>Subject</th><th>Size</th></tr>
     </thead>
     <tbody>`)
 		for _, message := range messages {
@@ -86,9 +86,11 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
       <tr>
         <td>%s</td>
         <td>%s</td>
+        <td>%s</td>
         <td><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">%s</a></td>
         <td>%d</td>
       </tr>`,
+				html.EscapeString(answeredStatus(message.Answered)),
 				html.EscapeString(formatIMAPTime(message.Date)),
 				html.EscapeString(message.From),
 				html.EscapeString(account.ID),
@@ -107,6 +109,20 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
   <p><a href="/mail-accounts">Back</a></p>
 </body>
 </html>`)
+}
+
+func answeredStatus(answered bool) string {
+	if answered {
+		return "Replied"
+	}
+	return ""
+}
+
+func messageHeaderValue(value string) string {
+	if value == "" {
+		return "(none)"
+	}
+	return value
 }
 
 func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
@@ -166,8 +182,18 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
   <h1>%s</h1>
   <dl>
     <dt>From</dt><dd>%s</dd>
+    <dt>To</dt><dd>%s</dd>
+    <dt>Cc</dt><dd>%s</dd>
+    <dt>Reply-To</dt><dd>%s</dd>
     <dt>Date</dt><dd>%s</dd>
+    <dt>Message-ID</dt><dd>%s</dd>
+    <dt>In-Reply-To</dt><dd>%s</dd>
+    <dt>References</dt><dd>%s</dd>
   </dl>
+  <p>
+    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply">Reply</a>
+    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply-all">Reply all</a>
+  </p>
   <pre>%s</pre>
 </body>
 </html>`,
@@ -177,7 +203,19 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(mailbox),
 		html.EscapeString(subjectOrUntitled(message.Subject)),
 		html.EscapeString(message.From),
+		html.EscapeString(messageHeaderValue(message.To)),
+		html.EscapeString(messageHeaderValue(message.Cc)),
+		html.EscapeString(messageHeaderValue(message.ReplyTo)),
 		html.EscapeString(formatIMAPTime(message.Date)),
+		html.EscapeString(messageHeaderValue(message.MessageID)),
+		html.EscapeString(messageHeaderValue(message.InReplyTo)),
+		html.EscapeString(messageHeaderValue(message.References)),
+		html.EscapeString(account.ID),
+		url.PathEscape(mailbox),
+		message.UID,
+		html.EscapeString(account.ID),
+		url.PathEscape(mailbox),
+		message.UID,
 		html.EscapeString(message.Body),
 	)
 }

@@ -1,0 +1,16 @@
+Return-Path: <alice@example.test>
+Delivered-To: dev@example.test
+Date: Tue, 14 Jul 2026 09:45:00 +0900
+From: Alice Example <alice@example.test>
+To: Dev User <dev@example.test>, Bob Example <bob@example.test>
+Cc: Carol Example <carol@example.test>
+Subject: Reply all fixture
+Message-ID: <fixture-004@example.test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Hello everyone,
+
+This fixture message is for checking Reply all recipients.
+Reply all should send to Alice and copy Bob and Carol, excluding dev@example.test.

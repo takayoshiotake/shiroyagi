@@ -45,6 +45,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /mail-accounts/{id}/send", s.requireSession(s.handleSendTestMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}", s.requireSession(s.handleMailbox))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}", s.requireSession(s.handleMessage))
+	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply", s.requireSession(s.handleNewReplyMessage))
+	mux.HandleFunc("POST /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply", s.requireSession(s.handleSendReplyMessage))
+	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply-all", s.requireSession(s.handleNewReplyAllMessage))
+	mux.HandleFunc("POST /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply-all", s.requireSession(s.handleSendReplyAllMessage))
 
 	mux.HandleFunc("GET /mail-accounts/{id}/imap/edit", s.requireSession(s.handleEditIMAPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/imap/save", s.requireSession(s.handleSaveIMAPAccount))

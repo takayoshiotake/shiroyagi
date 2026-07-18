@@ -38,19 +38,26 @@ type Account struct {
 }
 
 type MessageSummary struct {
-	UID     uint32
-	Subject string
-	From    string
-	Date    time.Time
-	Size    int64
+	UID      uint32
+	Subject  string
+	From     string
+	Date     time.Time
+	Size     int64
+	Answered bool
 }
 
 type Message struct {
-	UID     uint32
-	Subject string
-	From    string
-	Date    time.Time
-	Body    string
+	UID        uint32
+	Subject    string
+	From       string
+	ReplyTo    string
+	To         string
+	Cc         string
+	Date       time.Time
+	Body       string
+	MessageID  string
+	InReplyTo  string
+	References string
 }
 
 type OperationError struct {
@@ -107,6 +114,7 @@ func ListMessages(ctx context.Context, account Account, mailbox string, limit ui
 
 	messages, err := fetchMessages(client, seqSet, []goimap.FetchItem{
 		goimap.FetchEnvelope,
+		goimap.FetchFlags,
 		goimap.FetchInternalDate,
 		goimap.FetchRFC822Size,
 		goimap.FetchUid,
@@ -118,9 +126,10 @@ func ListMessages(ctx context.Context, account Account, mailbox string, limit ui
 	summaries := make([]MessageSummary, 0, len(messages))
 	for _, msg := range messages {
 		summary := MessageSummary{
-			UID:  msg.Uid,
-			Size: int64(msg.Size),
-			Date: msg.InternalDate,
+			UID:      msg.Uid,
+			Size:     int64(msg.Size),
+			Date:     msg.InternalDate,
+			Answered: hasFlag(msg.Flags, goimap.AnsweredFlag),
 		}
 		if msg.Envelope != nil {
 			summary.Subject = msg.Envelope.Subject
@@ -176,20 +185,57 @@ func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32
 	if err != nil {
 		return Message{}, wrapError("parse mailbox message body", account, mailbox, uid, err)
 	}
+	headers, err := extractHeaders(bodyBytes)
+	if err != nil {
+		return Message{}, wrapError("parse mailbox message headers", account, mailbox, uid, err)
+	}
 
 	message := Message{
-		UID:  msg.Uid,
-		Body: body,
+		UID:        msg.Uid,
+		Body:       body,
+		InReplyTo:  headers.Get("In-Reply-To"),
+		References: headers.Get("References"),
 	}
 	if msg.Envelope != nil {
 		message.Subject = msg.Envelope.Subject
 		message.From = formatAddresses(msg.Envelope.From)
+		message.ReplyTo = firstAddress(msg.Envelope.ReplyTo)
+		message.To = formatAddresses(msg.Envelope.To)
+		message.Cc = formatAddresses(msg.Envelope.Cc)
 		message.Date = msg.Envelope.Date
+		message.MessageID = msg.Envelope.MessageId
+		if message.InReplyTo == "" {
+			message.InReplyTo = msg.Envelope.InReplyTo
+		}
+	}
+	if message.MessageID == "" {
+		message.MessageID = headers.Get("Message-ID")
 	}
 	return message, nil
 }
 
 var ErrMessageNotFound = errors.New("message not found")
+
+func MarkAnswered(ctx context.Context, account Account, mailbox string, uid uint32) error {
+	client, err := connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	defer client.Logout()
+
+	if _, err := client.Select(mailbox, false); err != nil {
+		return wrapError("select mailbox", account, mailbox, uid, err)
+	}
+
+	seqSet := new(goimap.SeqSet)
+	seqSet.AddNum(uid)
+	item := goimap.FormatFlagsOp(goimap.AddFlags, true)
+	if err := client.UidStore(seqSet, item, []interface{}{goimap.AnsweredFlag}, nil); err != nil {
+		return wrapError("mark mailbox message answered", account, mailbox, uid, err)
+	}
+	return nil
+}
 
 func connect(ctx context.Context, account Account) (*goimapclient.Client, error) {
 	select {
@@ -283,20 +329,44 @@ func formatAddresses(addresses []*goimap.Address) string {
 	}
 	parts := make([]string, 0, len(addresses))
 	for _, address := range addresses {
-		if address == nil || address.MailboxName == "" || address.HostName == "" {
-			continue
-		}
-		email := address.Address()
-		switch {
-		case address.PersonalName != "" && email != "":
-			parts = append(parts, fmt.Sprintf("%s <%s>", address.PersonalName, email))
-		case email != "":
-			parts = append(parts, email)
-		case address.PersonalName != "":
-			parts = append(parts, address.PersonalName)
+		if formatted := formatAddress(address); formatted != "" {
+			parts = append(parts, formatted)
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+func firstAddress(addresses []*goimap.Address) string {
+	if len(addresses) == 0 {
+		return ""
+	}
+	return formatAddress(addresses[0])
+}
+
+func formatAddress(address *goimap.Address) string {
+	if address == nil || address.MailboxName == "" || address.HostName == "" {
+		return ""
+	}
+	email := address.Address()
+	switch {
+	case address.PersonalName != "" && email != "":
+		return fmt.Sprintf("%s <%s>", address.PersonalName, email)
+	case email != "":
+		return email
+	case address.PersonalName != "":
+		return address.PersonalName
+	default:
+		return ""
+	}
+}
+
+func hasFlag(flags []string, want string) bool {
+	for _, flag := range flags {
+		if strings.EqualFold(flag, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func reverseSummaries(summaries []MessageSummary) {
@@ -318,6 +388,14 @@ func extractTextBody(raw []byte) (string, error) {
 		return "(no text body)", nil
 	}
 	return body, nil
+}
+
+func extractHeaders(raw []byte) (mail.Header, error) {
+	msg, err := mail.ReadMessage(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	return msg.Header, nil
 }
 
 func extractEntityText(header mail.Header, body io.Reader) (string, bool, error) {
