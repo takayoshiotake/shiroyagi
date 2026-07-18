@@ -43,7 +43,7 @@ func main() {
 		log.Fatalf("migrate database: %v", err)
 	}
 
-	authClient, err := auth.NewClient(ctx, cfg)
+	authClient, err := auth.NewClientWithRetry(ctx, cfg, 2*time.Minute)
 	if err != nil {
 		log.Fatalf("create auth client: %v", err)
 	}

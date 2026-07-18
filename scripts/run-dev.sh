@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export OIDC_ISSUER="http://localhost:8081/realms/dev"
-export OIDC_BROWSER_ISSUER="http://localhost:8081/realms/dev"
+export OIDC_ISSUER="http://keycloak.localhost:8081/realms/dev"
 export OIDC_CLIENT_ID="shiroyagi"
 export OIDC_CLIENT_SECRET_FILE="secrets/dev/oidc_client_secret"
 export OIDC_REDIRECT_URI="http://localhost:8080/auth/callback"

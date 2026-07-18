@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -32,9 +31,6 @@ func NewClient(ctx context.Context, cfg config.Config) (*Client, error) {
 	}
 
 	endpoint := provider.Endpoint()
-	if cfg.BrowserIssuer != cfg.Issuer {
-		endpoint.AuthURL = strings.Replace(endpoint.AuthURL, cfg.Issuer, cfg.BrowserIssuer, 1)
-	}
 
 	return &Client{
 		oauth2Config: oauth2.Config{
@@ -48,6 +44,40 @@ func NewClient(ctx context.Context, cfg config.Config) (*Client, error) {
 			ClientID: cfg.ClientID,
 		}),
 	}, nil
+}
+
+func NewClientWithRetry(ctx context.Context, cfg config.Config, timeout time.Duration) (*Client, error) {
+	if timeout <= 0 {
+		return NewClient(ctx, cfg)
+	}
+
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for {
+		client, err := NewClient(retryCtx, cfg)
+		if err == nil {
+			return client, nil
+		}
+		lastErr = err
+
+		if err := retryCtx.Err(); err != nil {
+			return nil, fmt.Errorf("%w: last OIDC discovery error: %v", err, lastErr)
+		}
+
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-retryCtx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf(
+				"%w: last OIDC discovery error: %v",
+				retryCtx.Err(),
+				lastErr,
+			)
+		case <-timer.C:
+		}
+	}
 }
 
 func (c *Client) AuthCodeURL(state, nonce string, forceReauth bool) string {

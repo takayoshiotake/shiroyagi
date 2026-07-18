@@ -10,13 +10,12 @@ import (
 const defaultMailAccountKEKVersion int16 = 1
 
 type Config struct {
-	Issuer        string
-	BrowserIssuer string
-	ClientID      string
-	ClientSecret  string
-	RedirectURI   string
-	Database      DatabaseConfig
-	MailCrypto    MailCryptoConfig
+	Issuer       string
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	Database     DatabaseConfig
+	MailCrypto   MailCryptoConfig
 }
 
 type DatabaseConfig struct {
@@ -34,10 +33,9 @@ type MailCryptoConfig struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		Issuer:        os.Getenv("OIDC_ISSUER"),
-		BrowserIssuer: os.Getenv("OIDC_BROWSER_ISSUER"),
-		ClientID:      os.Getenv("OIDC_CLIENT_ID"),
-		RedirectURI:   os.Getenv("OIDC_REDIRECT_URI"),
+		Issuer:      os.Getenv("OIDC_ISSUER"),
+		ClientID:    os.Getenv("OIDC_CLIENT_ID"),
+		RedirectURI: os.Getenv("OIDC_REDIRECT_URI"),
 		Database: DatabaseConfig{
 			Host: os.Getenv("DATABASE_HOST"),
 			Port: os.Getenv("DATABASE_PORT"),
@@ -47,9 +45,6 @@ func Load() (Config, error) {
 		MailCrypto: MailCryptoConfig{
 			KEKFile: os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
 		},
-	}
-	if cfg.BrowserIssuer == "" {
-		cfg.BrowserIssuer = cfg.Issuer
 	}
 
 	kekVersion, err := readKEKVersion()

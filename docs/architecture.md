@@ -5,7 +5,7 @@
 ```text
 Browser
   ├── http://localhost:8080 -> Web
-  ├── http://localhost:8081 -> Keycloak
+  ├── http://keycloak.localhost:8081 -> Keycloak
   └── http://localhost:8025 -> Mailpit UI
 
 Web
