@@ -28,10 +28,13 @@ type Account struct {
 }
 
 type Message struct {
-	From    string
-	To      string
-	Subject string
-	Body    string
+	From       string
+	To         string
+	Cc         string
+	Subject    string
+	Body       string
+	InReplyTo  string
+	References string
 }
 
 type OperationError struct {
@@ -76,8 +79,14 @@ func Send(ctx context.Context, account Account, message Message) error {
 	if err := client.Mail(message.From); err != nil {
 		return wrapError("set smtp sender", account, err)
 	}
-	if err := client.Rcpt(message.To); err != nil {
-		return wrapError("set smtp recipient", account, err)
+	recipients, err := messageRecipients(message)
+	if err != nil {
+		return wrapError("validate smtp recipients", account, err)
+	}
+	for _, recipient := range recipients {
+		if err := client.Rcpt(recipient); err != nil {
+			return wrapError("set smtp recipient", account, err)
+		}
 	}
 
 	writer, err := client.Data()
@@ -152,11 +161,22 @@ func buildMessage(message Message) []byte {
 	headers := []string{
 		"From: " + message.From,
 		"To: " + message.To,
-		"Subject: " + sanitizeHeaderValue(message.Subject),
+	}
+	if message.Cc != "" {
+		headers = append(headers, "Cc: "+sanitizeHeaderValue(message.Cc))
+	}
+	headers = append(headers, "Subject: "+sanitizeHeaderValue(message.Subject))
+	if message.InReplyTo != "" {
+		headers = append(headers, "In-Reply-To: "+sanitizeHeaderValue(message.InReplyTo))
+	}
+	if message.References != "" {
+		headers = append(headers, "References: "+sanitizeHeaderValue(message.References))
+	}
+	headers = append(headers,
 		"MIME-Version: 1.0",
 		"Content-Type: text/plain; charset=UTF-8",
 		"Content-Transfer-Encoding: 8bit",
-	}
+	)
 	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + normalizeBody(message.Body))
 }
 
@@ -176,10 +196,40 @@ func validateMessage(message Message) error {
 	if message.To == "" {
 		return errors.New("to is required")
 	}
-	if _, err := mail.ParseAddress(message.To); err != nil {
-		return fmt.Errorf("invalid to address: %w", err)
+	if _, err := messageRecipients(message); err != nil {
+		return err
 	}
 	return nil
+}
+
+func messageRecipients(message Message) ([]string, error) {
+	recipients, err := parseAddressList(message.To)
+	if err != nil {
+		return nil, fmt.Errorf("invalid to address: %w", err)
+	}
+	if message.Cc != "" {
+		ccRecipients, err := parseAddressList(message.Cc)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cc address: %w", err)
+		}
+		recipients = append(recipients, ccRecipients...)
+	}
+	if len(recipients) == 0 {
+		return nil, errors.New("recipient is required")
+	}
+	return recipients, nil
+}
+
+func parseAddressList(value string) ([]string, error) {
+	addresses, err := mail.ParseAddressList(value)
+	if err != nil {
+		return nil, err
+	}
+	recipients := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		recipients = append(recipients, address.Address)
+	}
+	return recipients, nil
 }
 
 func sanitizeHeaderValue(value string) string {
