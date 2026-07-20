@@ -77,51 +77,63 @@ func TestParseSMTPForm(t *testing.T) {
 	}
 }
 
-func TestParseTestMessageForm(t *testing.T) {
+func TestParseComposeMessageFormDefaultsToNew(t *testing.T) {
 	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", strings.NewReader("to=to%40example.test&subject=Hello&body=Body"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err := req.ParseForm(); err != nil {
 		t.Fatalf("ParseForm() error = %v", err)
 	}
 
-	form, ok := parseTestMessageForm(req)
+	form, ok := parseComposeMessageForm(req)
 	if !ok {
-		t.Fatal("parseTestMessageForm() ok = false, want true")
+		t.Fatal("parseComposeMessageForm() ok = false, want true")
 	}
-	if form.To != "to@example.test" || form.Subject != "Hello" || form.Body != "Body" {
-		t.Fatalf("parseTestMessageForm() = %+v", form)
+	if form.Mode != composeModeNew || form.To != "to@example.test" || form.Subject != "Hello" || form.Body != "Body" {
+		t.Fatalf("parseComposeMessageForm() = %+v", form)
 	}
 }
 
-func TestParseReplyMessageForm(t *testing.T) {
-	req := httptest.NewRequest("POST", "/mail-accounts/account-1/mailboxes/INBOX/messages/1/reply", strings.NewReader("to=to%40example.test&cc=cc%40example.test&subject=Re%3A+Hello&body=Body"))
+func TestParseComposeMessageFormReadsReplyMetadata(t *testing.T) {
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", strings.NewReader("mode=reply&mailbox=INBOX&uid=42&to=to%40example.test&cc=cc%40example.test&subject=Re%3A+Hello&body=Body"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err := req.ParseForm(); err != nil {
 		t.Fatalf("ParseForm() error = %v", err)
 	}
 
-	form, ok := parseReplyMessageForm(req)
+	form, ok := parseComposeMessageForm(req)
 	if !ok {
-		t.Fatal("parseReplyMessageForm() ok = false, want true")
+		t.Fatal("parseComposeMessageForm() ok = false, want true")
 	}
-	if form.To != "to@example.test" || form.Cc != "cc@example.test" || form.Subject != "Re: Hello" || form.Body != "Body" {
-		t.Fatalf("parseReplyMessageForm() = %+v", form)
+	if form.Mode != composeModeReply || form.Mailbox != "INBOX" || form.UID != 42 || form.To != "to@example.test" || form.Cc != "cc@example.test" || form.Subject != "Re: Hello" || form.Body != "Body" {
+		t.Fatalf("parseComposeMessageForm() = %+v", form)
 	}
 }
 
-func TestParseForwardMessageForm(t *testing.T) {
-	req := httptest.NewRequest("POST", "/mail-accounts/account-1/mailboxes/INBOX/messages/1/forward", strings.NewReader("to=to%40example.test&cc=cc%40example.test&subject=Fwd%3A+Hello&body=Body"))
+func TestParseComposeMessageFormReadsForwardMetadata(t *testing.T) {
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", strings.NewReader("mode=forward&mailbox=INBOX&uid=42&to=to%40example.test&cc=cc%40example.test&subject=Fwd%3A+Hello&body=Body"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err := req.ParseForm(); err != nil {
 		t.Fatalf("ParseForm() error = %v", err)
 	}
 
-	form, ok := parseForwardMessageForm(req)
+	form, ok := parseComposeMessageForm(req)
 	if !ok {
-		t.Fatal("parseForwardMessageForm() ok = false, want true")
+		t.Fatal("parseComposeMessageForm() ok = false, want true")
 	}
-	if form.To != "to@example.test" || form.Cc != "cc@example.test" || form.Subject != "Fwd: Hello" || form.Body != "Body" {
-		t.Fatalf("parseForwardMessageForm() = %+v", form)
+	if form.Mode != composeModeForward || form.Mailbox != "INBOX" || form.UID != 42 || form.To != "to@example.test" || form.Cc != "cc@example.test" || form.Subject != "Fwd: Hello" || form.Body != "Body" {
+		t.Fatalf("parseComposeMessageForm() = %+v", form)
+	}
+}
+
+func TestParseComposeMessageFormRequiresOriginalMetadata(t *testing.T) {
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", strings.NewReader("mode=forward&to=to%40example.test&subject=Fwd%3A+Hello&body=Body"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatalf("ParseForm() error = %v", err)
+	}
+
+	if _, ok := parseComposeMessageForm(req); ok {
+		t.Fatal("parseComposeMessageForm() ok = true, want false")
 	}
 }
 

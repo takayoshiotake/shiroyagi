@@ -11,15 +11,7 @@ import (
 
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
-	mailsmtp "github.com/takayoshiotake/shiroyagi/internal/smtp"
 )
-
-type forwardMessageForm struct {
-	To      string
-	Cc      string
-	Subject string
-	Body    string
-}
 
 func (s *Server) handleNewForwardMessage(w http.ResponseWriter, r *http.Request) {
 	forwardContext, ok := s.loadForwardContext(w, r)
@@ -27,61 +19,14 @@ func (s *Server) handleNewForwardMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	form := forwardMessageForm{
+	form := composeMessageForm{
+		Mode:    composeModeForward,
+		Mailbox: forwardContext.mailbox,
+		UID:     forwardContext.original.UID,
 		Subject: forwardSubject(forwardContext.original.Subject),
 		Body:    forwardedBody(forwardContext.original),
 	}
 	renderForwardMessageForm(w, forwardContext.account, forwardContext.mailbox, forwardContext.original, form)
-}
-
-func (s *Server) handleSendForwardMessage(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	form, ok := parseForwardMessageForm(r)
-	if !ok {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	forwardContext, ok := s.loadForwardContext(w, r)
-	if !ok {
-		return
-	}
-
-	session, _ := sessionFromContext(r.Context())
-	smtpAccount, err := s.smtpSenderAccount(session.Subject, forwardContext.account)
-	if err != nil {
-		log.Printf("prepare smtp account %s: %v", forwardContext.account.ID, err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	message := mailsmtp.Message{
-		From:    forwardContext.account.EmailAddress,
-		To:      form.To,
-		Cc:      form.Cc,
-		Subject: form.Subject,
-		Body:    form.Body,
-	}
-	if err := mailsmtp.Send(r.Context(), smtpAccount, message); err != nil {
-		log.Printf("send forward message account=%s mailbox=%q uid=%d: %v", forwardContext.account.ID, forwardContext.mailbox, forwardContext.original.UID, err)
-		renderSMTPError(w, forwardContext.account, "Could not send forward: "+err.Error())
-		return
-	}
-
-	var forwardedWarning string
-	imapAccount, err := s.imapReaderAccount(session.Subject, forwardContext.account)
-	if err != nil {
-		log.Printf("prepare imap account %s for forwarded flag: %v", forwardContext.account.ID, err)
-		forwardedWarning = "Forward sent, but the original message could not be marked as forwarded."
-	} else if err := mailimap.MarkForwarded(r.Context(), imapAccount, forwardContext.mailbox, forwardContext.original.UID); err != nil {
-		log.Printf("mark forwarded account=%s mailbox=%q uid=%d: %v", forwardContext.account.ID, forwardContext.mailbox, forwardContext.original.UID, err)
-		forwardedWarning = "Forward sent, but the original message could not be marked as forwarded."
-	}
-
-	renderForwardSent(w, forwardContext.account, forwardContext.mailbox, forwardContext.original, form, forwardedWarning)
 }
 
 type forwardContext struct {
@@ -145,20 +90,7 @@ func (s *Server) loadForwardContext(w http.ResponseWriter, r *http.Request) (for
 	}, true
 }
 
-func parseForwardMessageForm(r *http.Request) (forwardMessageForm, bool) {
-	form := forwardMessageForm{
-		To:      r.FormValue("to"),
-		Cc:      r.FormValue("cc"),
-		Subject: r.FormValue("subject"),
-		Body:    r.FormValue("body"),
-	}
-	if form.To == "" || form.Subject == "" || form.Body == "" {
-		return forwardMessageForm{}, false
-	}
-	return form, true
-}
-
-func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form forwardMessageForm) {
+func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form composeMessageForm) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = fmt.Fprintf(w, `<!doctype html>
 <html>
@@ -183,7 +115,10 @@ func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail,
     <dt>References</dt><dd>%s</dd>
   </dl>
 
-  <form method="post" action="/mail-accounts/%s/mailboxes/%s/messages/%d/forward">
+  <form method="post" action="/mail-accounts/%s/send">
+    <input type="hidden" name="mode" value="forward">
+    <input type="hidden" name="mailbox" value="%s">
+    <input type="hidden" name="uid" value="%d">
     <p>
       <label>To<br>
         <input name="to" value="%s" required>
@@ -221,45 +156,12 @@ func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail,
 		html.EscapeString(messageHeaderValue(original.InReplyTo)),
 		html.EscapeString(messageHeaderValue(original.References)),
 		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
+		html.EscapeString(mailbox),
 		original.UID,
 		html.EscapeString(form.To),
 		html.EscapeString(form.Cc),
 		html.EscapeString(form.Subject),
 		html.EscapeString(form.Body),
-	)
-}
-
-func renderForwardSent(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form forwardMessageForm, forwardedWarning string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Forward sent - Shiroyagi</title></head>
-<body>
-  <h1>Forward sent</h1>
-  <p><strong>%s</strong> to <strong>%s</strong></p>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(form.To),
-	)
-	if form.Cc != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p><strong>Cc</strong> %s</p>`, html.EscapeString(form.Cc))
-	}
-	if forwardedWarning != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p>%s</p>`, html.EscapeString(forwardedWarning))
-	}
-	_, _ = fmt.Fprintf(w, `
-  <p><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">Back to message</a></p>
-  <p><a href="/mail-accounts/%s/mailboxes/%s">Back to %s</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		original.UID,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		html.EscapeString(mailbox),
 	)
 }
 

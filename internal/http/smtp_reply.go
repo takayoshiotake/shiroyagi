@@ -12,15 +12,7 @@ import (
 
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
-	mailsmtp "github.com/takayoshiotake/shiroyagi/internal/smtp"
 )
-
-type replyMessageForm struct {
-	To      string
-	Cc      string
-	Subject string
-	Body    string
-}
 
 func (s *Server) handleNewReplyMessage(w http.ResponseWriter, r *http.Request) {
 	s.handleNewReply(w, r, replyModeReply)
@@ -36,7 +28,10 @@ func (s *Server) handleNewReply(w http.ResponseWriter, r *http.Request, mode rep
 		return
 	}
 
-	form := replyMessageForm{
+	form := composeMessageForm{
+		Mode:    composeMode(mode),
+		Mailbox: replyContext.mailbox,
+		UID:     replyContext.original.UID,
 		To:      replyRecipient(replyContext.original),
 		Subject: replySubject(replyContext.original.Subject),
 		Body:    quotedReplyBody(replyContext.original),
@@ -46,70 +41,6 @@ func (s *Server) handleNewReply(w http.ResponseWriter, r *http.Request, mode rep
 	}
 
 	renderReplyMessageForm(w, replyContext.account, replyContext.mailbox, replyContext.original, mode, form)
-}
-
-func (s *Server) handleSendReplyMessage(w http.ResponseWriter, r *http.Request) {
-	s.handleSendReply(w, r, replyModeReply)
-}
-
-func (s *Server) handleSendReplyAllMessage(w http.ResponseWriter, r *http.Request) {
-	s.handleSendReply(w, r, replyModeReplyAll)
-}
-
-func (s *Server) handleSendReply(w http.ResponseWriter, r *http.Request, mode replyMode) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	form, ok := parseReplyMessageForm(r)
-	if !ok {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	replyContext, ok := s.loadReplyContext(w, r)
-	if !ok {
-		return
-	}
-	if replyContext.original.MessageID == "" {
-		renderIMAPError(w, replyContext.account, "Could not prepare reply: original message has no Message-ID.")
-		return
-	}
-
-	session, _ := sessionFromContext(r.Context())
-	smtpAccount, err := s.smtpSenderAccount(session.Subject, replyContext.account)
-	if err != nil {
-		log.Printf("prepare smtp account %s: %v", replyContext.account.ID, err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	message := mailsmtp.Message{
-		From:       replyContext.account.EmailAddress,
-		To:         form.To,
-		Cc:         form.Cc,
-		Subject:    form.Subject,
-		Body:       form.Body,
-		InReplyTo:  replyContext.original.MessageID,
-		References: replyReferences(replyContext.original),
-	}
-	if err := mailsmtp.Send(r.Context(), smtpAccount, message); err != nil {
-		log.Printf("send reply message account=%s mailbox=%q uid=%d: %v", replyContext.account.ID, replyContext.mailbox, replyContext.original.UID, err)
-		renderSMTPError(w, replyContext.account, "Could not send reply: "+err.Error())
-		return
-	}
-
-	var answeredWarning string
-	imapAccount, err := s.imapReaderAccount(session.Subject, replyContext.account)
-	if err != nil {
-		log.Printf("prepare imap account %s for answered flag: %v", replyContext.account.ID, err)
-		answeredWarning = "Reply sent, but the original message could not be marked as answered."
-	} else if err := mailimap.MarkAnswered(r.Context(), imapAccount, replyContext.mailbox, replyContext.original.UID); err != nil {
-		log.Printf("mark answered account=%s mailbox=%q uid=%d: %v", replyContext.account.ID, replyContext.mailbox, replyContext.original.UID, err)
-		answeredWarning = "Reply sent, but the original message could not be marked as answered."
-	}
-
-	renderReplySent(w, replyContext.account, replyContext.mailbox, replyContext.original, form, answeredWarning)
 }
 
 type replyMode string
@@ -201,20 +132,7 @@ func (s *Server) loadReplyContext(w http.ResponseWriter, r *http.Request) (reply
 	}, true
 }
 
-func parseReplyMessageForm(r *http.Request) (replyMessageForm, bool) {
-	form := replyMessageForm{
-		To:      r.FormValue("to"),
-		Cc:      r.FormValue("cc"),
-		Subject: r.FormValue("subject"),
-		Body:    r.FormValue("body"),
-	}
-	if form.To == "" || form.Subject == "" || form.Body == "" {
-		return replyMessageForm{}, false
-	}
-	return form, true
-}
-
-func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, mode replyMode, form replyMessageForm) {
+func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, mode replyMode, form composeMessageForm) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = fmt.Fprintf(w, `<!doctype html>
 <html>
@@ -239,7 +157,10 @@ func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, m
     <dt>References</dt><dd>%s</dd>
   </dl>
 
-  <form method="post" action="/mail-accounts/%s/mailboxes/%s/messages/%d/%s">
+  <form method="post" action="/mail-accounts/%s/send">
+    <input type="hidden" name="mode" value="%s">
+    <input type="hidden" name="mailbox" value="%s">
+    <input type="hidden" name="uid" value="%d">
     <p>
       <label>To<br>
         <input name="to" value="%s" required>
@@ -279,47 +200,14 @@ func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, m
 		html.EscapeString(messageHeaderValue(original.InReplyTo)),
 		html.EscapeString(messageHeaderValue(original.References)),
 		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		original.UID,
 		html.EscapeString(mode.action()),
+		html.EscapeString(mailbox),
+		original.UID,
 		html.EscapeString(form.To),
 		html.EscapeString(form.Cc),
 		html.EscapeString(form.Subject),
 		html.EscapeString(form.Body),
 		html.EscapeString(mode.submitLabel()),
-	)
-}
-
-func renderReplySent(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form replyMessageForm, answeredWarning string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Reply sent - Shiroyagi</title></head>
-<body>
-  <h1>Reply sent</h1>
-  <p><strong>%s</strong> to <strong>%s</strong></p>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(form.To),
-	)
-	if form.Cc != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p><strong>Cc</strong> %s</p>`, html.EscapeString(form.Cc))
-	}
-	if answeredWarning != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p>%s</p>`, html.EscapeString(answeredWarning))
-	}
-	_, _ = fmt.Fprintf(w, `
-  <p><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">Back to message</a></p>
-  <p><a href="/mail-accounts/%s/mailboxes/%s">Back to %s</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		original.UID,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		html.EscapeString(mailbox),
 	)
 }
 
