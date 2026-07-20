@@ -115,7 +115,7 @@ SMTP check:
    and port `1025`. The compose development environment sets
    `SMTP_ALLOW_INSECURE_AUTH=true` so Mailpit can accept SMTP AUTH over the
    non-TLS `Plain` connection.
-4. Open `Send test` from the mail account list.
+4. Open `Send` from the mail account list.
 5. Enter a recipient, subject, and body, then send the message.
 6. Open Mailpit at http://localhost:8025 and confirm the message.
 

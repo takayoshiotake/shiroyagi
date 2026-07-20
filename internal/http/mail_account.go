@@ -47,7 +47,7 @@ func (s *Server) handleListMailAccounts(w http.ResponseWriter, r *http.Request) 
     <li>
       %s
       <a href="/mail-accounts/%s/mailboxes/%s">Inbox</a>
-      <a href="/mail-accounts/%s/send">Send test</a>
+      <a href="/mail-accounts/%s/send">Send</a>
       <a href="/mail-accounts/%s/imap/edit">IMAP</a>
       <a href="/mail-accounts/%s/smtp/edit">SMTP</a>
       <form method="post" action="/mail-accounts/%s/delete">

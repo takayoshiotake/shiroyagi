@@ -28,7 +28,7 @@ Username: dev@example.test
 Password: dev
 ```
 
-After saving the SMTP settings for a mail account, open `Send test` from the
+After saving the SMTP settings for a mail account, open `Send` from the
 mail account list, enter a recipient, subject, and body, then send the message.
 The sent message should appear in the Mailpit Web UI at
 http://localhost:8025.
