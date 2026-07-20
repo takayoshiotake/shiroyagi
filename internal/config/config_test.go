@@ -45,6 +45,32 @@ func TestLoadRejectsInvalidMailAccountKEKVersion(t *testing.T) {
 	}
 }
 
+func TestLoadReadsSMTPAllowInsecureAuth(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SMTP_ALLOW_INSECURE_AUTH", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.SMTP.AllowInsecureAuth {
+		t.Fatal("SMTP.AllowInsecureAuth = false, want true")
+	}
+}
+
+func TestLoadReadsIMAPAllowInsecureAuth(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("IMAP_ALLOW_INSECURE_AUTH", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.IMAP.AllowInsecureAuth {
+		t.Fatal("IMAP.AllowInsecureAuth = false, want true")
+	}
+}
+
 func setRequiredEnv(t *testing.T) {
 	t.Helper()
 

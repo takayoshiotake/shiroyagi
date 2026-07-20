@@ -1,0 +1,15 @@
+Return-Path: <alice@example.test>
+Delivered-To: dev@example.test
+Date: Tue, 14 Jul 2026 10:15:00 +0900
+From: Alice Example <alice@example.test>
+To: Dev User <dev@example.test>
+Subject: Forward fixture
+Message-ID: <fixture-005@example.test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Hello,
+
+This fixture message is for checking forward message composition.
+Shiroyagi should include this body in the forwarded message.

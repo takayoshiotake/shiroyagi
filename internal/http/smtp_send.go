@@ -110,11 +110,12 @@ func (s *Server) smtpSenderAccount(userID string, account mailaccount.Detail) (m
 		return mailsmtp.Account{}, err
 	}
 	return mailsmtp.Account{
-		Host:     account.SMTPHost,
-		Port:     account.SMTPPort,
-		Security: account.SMTPSecurity,
-		Username: account.SMTPUsername,
-		Password: password,
+		Host:              account.SMTPHost,
+		Port:              account.SMTPPort,
+		Security:          account.SMTPSecurity,
+		Username:          account.SMTPUsername,
+		Password:          password,
+		AllowInsecureAuth: s.smtpConfig.AllowInsecureAuth,
 	}, nil
 }
 

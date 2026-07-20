@@ -9,6 +9,13 @@ func selected(ok bool) string {
 	return ""
 }
 
+func smtpSecuritySelected(current string, value string) string {
+	if current == "" {
+		current = "plain"
+	}
+	return selected(current == value)
+}
+
 func portValue(ok bool, port int) string {
 	if !ok {
 		return ""

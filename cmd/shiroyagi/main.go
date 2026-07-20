@@ -48,7 +48,7 @@ func main() {
 		log.Fatalf("create auth client: %v", err)
 	}
 
-	server := httpserver.New(authClient, auth.NewSessionStore(), cfg.MailCrypto, mailaccount.NewStore(database))
+	server := httpserver.New(authClient, auth.NewSessionStore(), cfg.MailCrypto, cfg.IMAP, cfg.SMTP, mailaccount.NewStore(database))
 
 	log.Println("listening on :8080")
 	if err := http.ListenAndServe(":8080", server.Routes()); err != nil {

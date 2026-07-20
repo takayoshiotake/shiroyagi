@@ -1,6 +1,9 @@
 package imap
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestExtractTextBodyPlain(t *testing.T) {
 	body, err := extractTextBody([]byte("Subject: Hi\r\nContent-Type: text/plain\r\n\r\nhello\r\n"))
@@ -36,5 +39,38 @@ func TestExtractTextBodyBase64(t *testing.T) {
 	}
 	if body != "hello" {
 		t.Fatalf("extractTextBody() = %q, want %q", body, "hello")
+	}
+}
+
+func TestHasFlagIsCaseInsensitive(t *testing.T) {
+	if !hasFlag([]string{"\\Seen", "$forwarded"}, "$Forwarded") {
+		t.Fatal("hasFlag() = false, want true")
+	}
+}
+
+func TestIsLocalhost(t *testing.T) {
+	for _, host := range []string{"localhost", "LOCALHOST.", "127.0.0.1", "::1"} {
+		if !isLocalhost(host) {
+			t.Fatalf("isLocalhost(%q) = false, want true", host)
+		}
+	}
+	if isLocalhost("mailpit") {
+		t.Fatal("isLocalhost(mailpit) = true, want false")
+	}
+}
+
+func TestValidateIMAPAuthRejectsPlainNonLocalhostWithoutOptIn(t *testing.T) {
+	_, err := connect(t.Context(), Account{
+		Host:     "mailpit",
+		Port:     2143,
+		Security: SecurityIMAP,
+		Username: "dev@example.test",
+		Password: "dev",
+	})
+	if err == nil {
+		t.Fatal("connect() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "insecure IMAP auth is disabled") {
+		t.Fatalf("connect() error = %q, want insecure auth error", err)
 	}
 }

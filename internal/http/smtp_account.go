@@ -89,9 +89,9 @@ func (s *Server) handleEditSMTPAccount(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(account.ID),
 		html.EscapeString(account.SMTPHost),
 		portValue(account.HasSMTP, account.SMTPPort),
-		selected(account.SMTPSecurity == "starttls"),
-		selected(account.SMTPSecurity == "smtps"),
-		selected(account.SMTPSecurity == "plain"),
+		smtpSecuritySelected(account.SMTPSecurity, "starttls"),
+		smtpSecuritySelected(account.SMTPSecurity, "smtps"),
+		smtpSecuritySelected(account.SMTPSecurity, "plain"),
 		html.EscapeString(account.SMTPUsername),
 		html.EscapeString(account.ID),
 	)

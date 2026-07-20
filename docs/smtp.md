@@ -37,7 +37,9 @@ http://localhost:8025.
 
 - `Plain` connects without TLS. This is intended for the development Mailpit
   service or for deployments where TLS is terminated before Shiroyagi reaches
-  the SMTP server.
+  the SMTP server. SMTP AUTH over this mode is rejected by default unless the
+  server is reached as `localhost`. Set `SMTP_ALLOW_INSECURE_AUTH=true` to
+  explicitly allow SMTP AUTH over non-TLS `Plain` connections.
 - `STARTTLS` connects in plaintext first, then requires the SMTP server to
   advertise and complete STARTTLS before authentication or message submission.
 - `SMTPS` connects with TLS from the start.

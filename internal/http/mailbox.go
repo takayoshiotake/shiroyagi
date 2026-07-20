@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/takayoshiotake/shiroyagi/internal/crypto"
@@ -90,7 +91,7 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
         <td><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">%s</a></td>
         <td>%d</td>
       </tr>`,
-				html.EscapeString(answeredStatus(message.Answered)),
+				html.EscapeString(messageStatus(message)),
 				html.EscapeString(formatIMAPTime(message.Date)),
 				html.EscapeString(message.From),
 				html.EscapeString(account.ID),
@@ -111,11 +112,29 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
 </html>`)
 }
 
-func answeredStatus(answered bool) string {
-	if answered {
-		return "Replied"
+func messageStatus(message mailimap.MessageSummary) string {
+	statuses := make([]string, 0, 2)
+	if message.Answered {
+		statuses = append(statuses, "Replied")
 	}
-	return ""
+	if message.Forwarded {
+		statuses = append(statuses, "Forwarded")
+	}
+	return strings.Join(statuses, ", ")
+}
+
+func messageDetailStatus(message mailimap.Message) string {
+	statuses := make([]string, 0, 2)
+	if message.Answered {
+		statuses = append(statuses, "Replied")
+	}
+	if message.Forwarded {
+		statuses = append(statuses, "Forwarded")
+	}
+	if len(statuses) == 0 {
+		return "(none)"
+	}
+	return strings.Join(statuses, ", ")
 }
 
 func messageHeaderValue(value string) string {
@@ -181,6 +200,7 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
   <p><a href="/mail-accounts/%s/mailboxes/%s">Back to %s</a></p>
   <h1>%s</h1>
   <dl>
+    <dt>Status</dt><dd>%s</dd>
     <dt>From</dt><dd>%s</dd>
     <dt>To</dt><dd>%s</dd>
     <dt>Cc</dt><dd>%s</dd>
@@ -193,6 +213,7 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
   <p>
     <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply">Reply</a>
     <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply-all">Reply all</a>
+    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/forward">Forward</a>
   </p>
   <pre>%s</pre>
 </body>
@@ -202,6 +223,7 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		url.PathEscape(mailbox),
 		html.EscapeString(mailbox),
 		html.EscapeString(subjectOrUntitled(message.Subject)),
+		html.EscapeString(messageDetailStatus(message)),
 		html.EscapeString(message.From),
 		html.EscapeString(messageHeaderValue(message.To)),
 		html.EscapeString(messageHeaderValue(message.Cc)),
@@ -210,6 +232,9 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(messageHeaderValue(message.MessageID)),
 		html.EscapeString(messageHeaderValue(message.InReplyTo)),
 		html.EscapeString(messageHeaderValue(message.References)),
+		html.EscapeString(account.ID),
+		url.PathEscape(mailbox),
+		message.UID,
 		html.EscapeString(account.ID),
 		url.PathEscape(mailbox),
 		message.UID,
@@ -226,11 +251,12 @@ func (s *Server) imapReaderAccount(userID string, account mailaccount.Detail) (m
 		return mailimap.Account{}, err
 	}
 	return mailimap.Account{
-		Host:     account.IMAPHost,
-		Port:     account.IMAPPort,
-		Security: account.IMAPSecurity,
-		Username: account.IMAPUsername,
-		Password: password,
+		Host:              account.IMAPHost,
+		Port:              account.IMAPPort,
+		Security:          account.IMAPSecurity,
+		Username:          account.IMAPUsername,
+		Password:          password,
+		AllowInsecureAuth: s.imapConfig.AllowInsecureAuth,
 	}, nil
 }
 

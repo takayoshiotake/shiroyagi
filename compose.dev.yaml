@@ -3,6 +3,9 @@ services:
     depends_on:
       - postgres
       - keycloak
+    environment:
+      IMAP_ALLOW_INSECURE_AUTH: "true"
+      SMTP_ALLOW_INSECURE_AUTH: "true"
     ports:
       - "8080:8080"
 

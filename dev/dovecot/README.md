@@ -13,3 +13,6 @@ Development IMAP account:
 
 `fixtures/dev@example.test/Maildir/new` contains test messages. The
 `dovecot-seed` compose service copies them into the `dovecot_data` volume.
+
+If fixtures are added after the volume already exists, recreate or reseed the
+development Dovecot volume before checking the new messages.

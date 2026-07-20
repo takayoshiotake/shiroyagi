@@ -95,7 +95,9 @@ IMAP check:
    When the Go app is run locally against the development services, use
    `localhost`, port `2143`, and protocol `IMAP` for the development Dovecot
    service. When the app runs in compose, use `dovecot`, port `31143`, and
-   protocol `IMAP`.
+   protocol `IMAP`. The compose development environment sets
+   `IMAP_ALLOW_INSECURE_AUTH=true` so Dovecot can accept LOGIN over the
+   non-TLS `IMAP` connection.
 4. Open `Inbox` from the mail account list.
 
 The first IMAP link opens `INBOX` and fetches the latest 100 messages.
@@ -110,7 +112,9 @@ SMTP check:
    `dev`.
    When the Go app is run locally against the development services, use
    `localhost` and port `1025`. When the app runs in compose, use `mailpit`
-   and port `1025`.
+   and port `1025`. The compose development environment sets
+   `SMTP_ALLOW_INSECURE_AUTH=true` so Mailpit can accept SMTP AUTH over the
+   non-TLS `Plain` connection.
 4. Open `Send test` from the mail account list.
 5. Enter a recipient, subject, and body, then send the message.
 6. Open Mailpit at http://localhost:8025 and confirm the message.
@@ -151,6 +155,30 @@ added, recreate or reseed the volume so the new fixture message is copied.
 After a reply is sent, Shiroyagi attempts to add the IMAP `\Answered` flag to
 the original message. If the SMTP send succeeds but flag update fails, the
 reply remains sent and the result page shows a warning.
+
+Forward check:
+
+1. Configure both IMAP and SMTP for the same mail account.
+2. Open the `Forward fixture` message in `Inbox` and click `Forward`.
+3. Confirm that the subject is prefixed with `Fwd:` and the body includes the
+   forwarded message header and original text body.
+4. Enter a recipient and send the forward.
+5. Open Mailpit at http://localhost:8025 and confirm the forwarded message.
+6. Confirm that the original message has the IMAP `$Forwarded` flag:
+
+   ```bash
+   podman compose -f compose.yaml -f compose.dev.yaml exec dovecot \
+     doveadm fetch -u dev@example.test 'uid flags hdr.message-id hdr.subject' mailbox INBOX all
+   ```
+
+   The original fixture message should include `$Forwarded` in its `flags`
+   output. The Shiroyagi inbox list should also show `Forwarded` in the
+   message status column. `$Forwarded` is an IMAP keyword and depends on server
+   support; if the SMTP send succeeds but the flag update fails, the forward
+   remains sent and the result page shows a warning.
+
+Attachments are handled separately in #12. Forwarding currently includes the
+inline text body only.
 
 ## Build
 
