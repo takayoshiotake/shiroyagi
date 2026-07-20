@@ -6,6 +6,25 @@ Production may use external Keycloak or any configured OIDC provider.
 
 Only explicitly configured issuers are allowed.
 
+## Issuer URLs
+
+`OIDC_ISSUER` is the issuer URL used by Shiroyagi for OIDC discovery,
+authorization redirects, token exchange, JWKS retrieval, and ID token issuer
+verification.
+
+The development compose environment uses one shared issuer URL:
+
+```text
+OIDC_ISSUER=http://keycloak.localhost:8081/realms/dev
+```
+
+In compose, `keycloak.localhost` is also a network alias for the Keycloak
+container, so the web container can reach the same issuer URL that the browser
+uses through the host-published port.
+
+At startup, Shiroyagi retries OIDC discovery for a short period so the web
+container does not exit just because Keycloak is still starting.
+
 ## Routes
 
 - `/signin`: Shiroyagi sign-in page with a link to start OIDC login.
@@ -13,6 +32,10 @@ Only explicitly configured issuers are allowed.
   Keycloak.
 - `/auth/callback`: receives the authorization code from Keycloak.
 - `/auth/logout`: clears the Shiroyagi application session.
+
+If the callback cannot exchange the authorization code or verify the ID token,
+the browser receives a generic error and the server log records the underlying
+cause.
 
 Application pages require a Shiroyagi session. Requests without a valid session
 are redirected to `/signin`.

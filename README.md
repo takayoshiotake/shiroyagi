@@ -56,6 +56,8 @@ Then run the Go application on the host.
 >
 > Keycloak automatically imports the development realm on startup. The `dev` realm, `shiroyagi` OIDC client, and `dev` user are defined in `dev/keycloak/realm.json`.
 >
+> In compose, Shiroyagi uses `OIDC_ISSUER=http://keycloak.localhost:8081/realms/dev` for discovery, browser redirects, token exchange, and ID token issuer verification. The `keycloak.localhost` name is shared between the browser and the compose network. The app retries OIDC discovery while Keycloak is still starting.
+>
 > The development app login is `dev` / `dev`. The Keycloak admin console login is `admin` / `admin`.
 
 ## Development layout
@@ -74,7 +76,7 @@ flowchart LR
 URLs:
 
 - Web: http://localhost:8080
-- Keycloak: http://localhost:8081
+- Keycloak: http://keycloak.localhost:8081
 - Mailpit: http://localhost:8025
 
 Login check:

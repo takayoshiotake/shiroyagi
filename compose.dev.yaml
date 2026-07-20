@@ -1,5 +1,8 @@
 services:
   web:
+    depends_on:
+      - postgres
+      - keycloak
     ports:
       - "8080:8080"
 
@@ -11,16 +14,20 @@ services:
     image: quay.io/keycloak/keycloak:26.6.4
     command: start-dev --import-realm
     ports:
-      - "8081:8080"
+      - "8081:8081"
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8081"
+      KC_HOSTNAME: http://keycloak.localhost:8081
       KC_HOSTNAME_STRICT: "false"
     volumes:
       - ./dev/keycloak:/opt/keycloak/data/import:ro
     networks:
-      - app
+      app:
+        aliases:
+          - keycloak.localhost
 
   dovecot:
     image: dovecot/dovecot:latest

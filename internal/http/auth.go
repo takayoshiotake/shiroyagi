@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 )
@@ -60,6 +61,7 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	session, err := s.authClient.ExchangeCode(r.Context(), code, expectedNonce.Value)
 	if err != nil {
+		log.Printf("exchange OIDC code: %v", err)
 		http.Error(w, "failed to exchange OIDC code", http.StatusBadGateway)
 		return
 	}
