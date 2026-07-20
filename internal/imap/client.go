@@ -25,25 +25,28 @@ const (
 	SecurityIMAP  = "imap"
 	SecurityIMAPS = "imaps"
 
-	defaultLimit = 100
-	bodyLimit    = 2 << 20
+	defaultLimit  = 100
+	bodyLimit     = 2 << 20
+	forwardedFlag = "$Forwarded"
 )
 
 type Account struct {
-	Host     string
-	Port     int
-	Security string
-	Username string
-	Password string
+	Host              string
+	Port              int
+	Security          string
+	Username          string
+	Password          string
+	AllowInsecureAuth bool
 }
 
 type MessageSummary struct {
-	UID      uint32
-	Subject  string
-	From     string
-	Date     time.Time
-	Size     int64
-	Answered bool
+	UID       uint32
+	Subject   string
+	From      string
+	Date      time.Time
+	Size      int64
+	Answered  bool
+	Forwarded bool
 }
 
 type Message struct {
@@ -58,6 +61,8 @@ type Message struct {
 	MessageID  string
 	InReplyTo  string
 	References string
+	Answered   bool
+	Forwarded  bool
 }
 
 type OperationError struct {
@@ -126,10 +131,11 @@ func ListMessages(ctx context.Context, account Account, mailbox string, limit ui
 	summaries := make([]MessageSummary, 0, len(messages))
 	for _, msg := range messages {
 		summary := MessageSummary{
-			UID:      msg.Uid,
-			Size:     int64(msg.Size),
-			Date:     msg.InternalDate,
-			Answered: hasFlag(msg.Flags, goimap.AnsweredFlag),
+			UID:       msg.Uid,
+			Size:      int64(msg.Size),
+			Date:      msg.InternalDate,
+			Answered:  hasFlag(msg.Flags, goimap.AnsweredFlag),
+			Forwarded: hasFlag(msg.Flags, forwardedFlag),
 		}
 		if msg.Envelope != nil {
 			summary.Subject = msg.Envelope.Subject
@@ -162,6 +168,7 @@ func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32
 	messages, err := uidFetchMessages(client, seqSet, []goimap.FetchItem{
 		bodySection.FetchItem(),
 		goimap.FetchEnvelope,
+		goimap.FetchFlags,
 		goimap.FetchUid,
 	})
 	if err != nil {
@@ -195,6 +202,8 @@ func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32
 		Body:       body,
 		InReplyTo:  headers.Get("In-Reply-To"),
 		References: headers.Get("References"),
+		Answered:   hasFlag(msg.Flags, goimap.AnsweredFlag),
+		Forwarded:  hasFlag(msg.Flags, forwardedFlag),
 	}
 	if msg.Envelope != nil {
 		message.Subject = msg.Envelope.Subject
@@ -217,6 +226,14 @@ func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32
 var ErrMessageNotFound = errors.New("message not found")
 
 func MarkAnswered(ctx context.Context, account Account, mailbox string, uid uint32) error {
+	return markMessageFlag(ctx, account, mailbox, uid, goimap.AnsweredFlag, "mark mailbox message answered")
+}
+
+func MarkForwarded(ctx context.Context, account Account, mailbox string, uid uint32) error {
+	return markMessageFlag(ctx, account, mailbox, uid, forwardedFlag, "mark mailbox message forwarded")
+}
+
+func markMessageFlag(ctx context.Context, account Account, mailbox string, uid uint32, flag string, op string) error {
 	client, err := connect(ctx, account)
 	if err != nil {
 		return err
@@ -231,8 +248,8 @@ func MarkAnswered(ctx context.Context, account Account, mailbox string, uid uint
 	seqSet := new(goimap.SeqSet)
 	seqSet.AddNum(uid)
 	item := goimap.FormatFlagsOp(goimap.AddFlags, true)
-	if err := client.UidStore(seqSet, item, []interface{}{goimap.AnsweredFlag}, nil); err != nil {
-		return wrapError("mark mailbox message answered", account, mailbox, uid, err)
+	if err := client.UidStore(seqSet, item, []interface{}{flag}, nil); err != nil {
+		return wrapError(op, account, mailbox, uid, err)
 	}
 	return nil
 }
@@ -254,6 +271,9 @@ func connect(ctx context.Context, account Account) (*goimapclient.Client, error)
 	case SecurityIMAPS:
 		client, err = goimapclient.DialTLS(address, &tls.Config{ServerName: account.Host})
 	case SecurityIMAP:
+		if !account.AllowInsecureAuth && !isLocalhost(account.Host) {
+			return nil, wrapError("validate imap auth", account, "", 0, errors.New("insecure IMAP auth is disabled"))
+		}
 		dialer := &net.Dialer{Timeout: 10 * time.Second}
 		conn, dialErr := dialer.Dial("tcp", address)
 		if dialErr != nil {
@@ -272,6 +292,15 @@ func connect(ctx context.Context, account Account) (*goimapclient.Client, error)
 		return nil, wrapError("login imap server", account, "", 0, err)
 	}
 	return client, nil
+}
+
+func isLocalhost(host string) bool {
+	normalized := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if normalized == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
 }
 
 func wrapError(op string, account Account, mailbox string, uid uint32, err error) error {

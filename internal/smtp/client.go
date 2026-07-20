@@ -20,11 +20,12 @@ const (
 )
 
 type Account struct {
-	Host     string
-	Port     int
-	Security string
-	Username string
-	Password string
+	Host              string
+	Port              int
+	Security          string
+	Username          string
+	Password          string
+	AllowInsecureAuth bool
 }
 
 type Message struct {
@@ -71,7 +72,7 @@ func Send(ctx context.Context, account Account, message Message) error {
 	if account.Password == "" {
 		return wrapError("validate smtp auth", account, errors.New("password is required"))
 	}
-	auth := stdsmtp.PlainAuth("", account.Username, account.Password, account.Host)
+	auth := smtpAuth(account)
 	if err := client.Auth(auth); err != nil {
 		return wrapError("authenticate smtp server", account, err)
 	}
@@ -104,6 +105,30 @@ func Send(ctx context.Context, account Account, message Message) error {
 		return wrapError("quit smtp server", account, err)
 	}
 	return nil
+}
+
+func smtpAuth(account Account) stdsmtp.Auth {
+	if account.Security == SecurityPlain && account.AllowInsecureAuth {
+		return insecurePlainAuth{
+			username: account.Username,
+			password: account.Password,
+		}
+	}
+	return stdsmtp.PlainAuth("", account.Username, account.Password, account.Host)
+}
+
+type insecurePlainAuth struct {
+	username string
+	password string
+}
+
+func (a insecurePlainAuth) Start(*stdsmtp.ServerInfo) (string, []byte, error) {
+	response := []byte("\x00" + a.username + "\x00" + a.password)
+	return "PLAIN", response, nil
+}
+
+func (a insecurePlainAuth) Next([]byte, bool) ([]byte, error) {
+	return nil, nil
 }
 
 func connect(ctx context.Context, account Account) (*stdsmtp.Client, error) {

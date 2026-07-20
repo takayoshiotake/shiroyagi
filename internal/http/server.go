@@ -21,14 +21,18 @@ type Server struct {
 	authClient *auth.Client
 	sessions   *auth.SessionStore
 	mailCrypto config.MailCryptoConfig
+	imapConfig config.IMAPConfig
+	smtpConfig config.SMTPConfig
 	accounts   *mailaccount.Store
 }
 
-func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config.MailCryptoConfig, accounts *mailaccount.Store) *Server {
+func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config.MailCryptoConfig, imapConfig config.IMAPConfig, smtpConfig config.SMTPConfig, accounts *mailaccount.Store) *Server {
 	return &Server{
 		authClient: authClient,
 		sessions:   sessions,
 		mailCrypto: mailCrypto,
+		imapConfig: imapConfig,
+		smtpConfig: smtpConfig,
 		accounts:   accounts,
 	}
 }
@@ -49,6 +53,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply", s.requireSession(s.handleSendReplyMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply-all", s.requireSession(s.handleNewReplyAllMessage))
 	mux.HandleFunc("POST /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply-all", s.requireSession(s.handleSendReplyAllMessage))
+	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/forward", s.requireSession(s.handleNewForwardMessage))
+	mux.HandleFunc("POST /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/forward", s.requireSession(s.handleSendForwardMessage))
 
 	mux.HandleFunc("GET /mail-accounts/{id}/imap/edit", s.requireSession(s.handleEditIMAPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/imap/save", s.requireSession(s.handleSaveIMAPAccount))

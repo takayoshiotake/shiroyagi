@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"net/smtp"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,39 @@ func TestMessageRecipientsIncludesCc(t *testing.T) {
 	want := []string{"to@example.test", "copy1@example.test", "copy2@example.test"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("messageRecipients() = %#v, want %#v", got, want)
+	}
+}
+
+func TestSMTPAuthAllowsPlainModeWithoutTLS(t *testing.T) {
+	auth := smtpAuth(Account{
+		Host:              "mailpit",
+		Security:          SecurityPlain,
+		Username:          "dev@example.test",
+		Password:          "dev",
+		AllowInsecureAuth: true,
+	})
+	mechanism, response, err := auth.Start(nil)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if mechanism != "PLAIN" {
+		t.Fatalf("mechanism = %q, want PLAIN", mechanism)
+	}
+	if string(response) != "\x00dev@example.test\x00dev" {
+		t.Fatalf("response = %q, want PLAIN auth response", response)
+	}
+}
+
+func TestSMTPAuthRejectsPlainModeWithoutInsecureAuth(t *testing.T) {
+	auth := smtpAuth(Account{
+		Host:     "mailpit",
+		Security: SecurityPlain,
+		Username: "dev@example.test",
+		Password: "dev",
+	})
+	_, _, err := auth.Start(&smtp.ServerInfo{Name: "mailpit"})
+	if err == nil {
+		t.Fatal("Start() error = nil, want error")
 	}
 }
 

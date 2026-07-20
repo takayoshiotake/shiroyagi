@@ -37,6 +37,18 @@ func TestSelected(t *testing.T) {
 	}
 }
 
+func TestSMTPSecuritySelectedDefaultsToPlain(t *testing.T) {
+	if smtpSecuritySelected("", "plain") != " selected" {
+		t.Fatal("smtpSecuritySelected() did not default empty security to plain")
+	}
+	if smtpSecuritySelected("", "starttls") != "" {
+		t.Fatal("smtpSecuritySelected() selected starttls for empty security")
+	}
+	if smtpSecuritySelected("starttls", "starttls") != " selected" {
+		t.Fatal("smtpSecuritySelected() did not keep saved starttls selection")
+	}
+}
+
 func TestParseSMTPFormRequiresAuth(t *testing.T) {
 	req := httptest.NewRequest("POST", "/mail-accounts/account-1/smtp/save", strings.NewReader("smtp_host=localhost&smtp_port=1025&smtp_security=plain"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -97,6 +109,22 @@ func TestParseReplyMessageForm(t *testing.T) {
 	}
 }
 
+func TestParseForwardMessageForm(t *testing.T) {
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/mailboxes/INBOX/messages/1/forward", strings.NewReader("to=to%40example.test&cc=cc%40example.test&subject=Fwd%3A+Hello&body=Body"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatalf("ParseForm() error = %v", err)
+	}
+
+	form, ok := parseForwardMessageForm(req)
+	if !ok {
+		t.Fatal("parseForwardMessageForm() ok = false, want true")
+	}
+	if form.To != "to@example.test" || form.Cc != "cc@example.test" || form.Subject != "Fwd: Hello" || form.Body != "Body" {
+		t.Fatalf("parseForwardMessageForm() = %+v", form)
+	}
+}
+
 func TestReplyRecipientPrefersReplyToAddress(t *testing.T) {
 	got := replyRecipient(mailimap.Message{
 		From:    "Alice Example <alice@example.test>",
@@ -114,6 +142,25 @@ func TestReplySubject(t *testing.T) {
 	}
 	if got := replySubject("Re: Hello"); got != "Re: Hello" {
 		t.Fatalf("replySubject() = %q, want unchanged subject", got)
+	}
+}
+
+func TestForwardSubject(t *testing.T) {
+	if got := forwardSubject("Hello"); got != "Fwd: Hello" {
+		t.Fatalf("forwardSubject() = %q, want Fwd: Hello", got)
+	}
+	if got := forwardSubject("Fwd: Hello"); got != "Fwd: Hello" {
+		t.Fatalf("forwardSubject() = %q, want unchanged subject", got)
+	}
+	if got := forwardSubject("FW: Hello"); got != "FW: Hello" {
+		t.Fatalf("forwardSubject() = %q, want unchanged subject", got)
+	}
+}
+
+func TestMessageStatusIncludesForwarded(t *testing.T) {
+	got := messageStatus(mailimap.MessageSummary{Answered: true, Forwarded: true})
+	if got != "Replied, Forwarded" {
+		t.Fatalf("messageStatus() = %q, want Replied, Forwarded", got)
 	}
 }
 
@@ -140,5 +187,27 @@ func TestReplyReferencesAppendsOriginalMessageID(t *testing.T) {
 	want := "<root@example.test> <child@example.test>"
 	if got != want {
 		t.Fatalf("replyReferences() = %q, want %q", got, want)
+	}
+}
+
+func TestForwardedBodyIncludesHeadersAndBody(t *testing.T) {
+	got := forwardedBody(mailimap.Message{
+		Subject: "Hello",
+		From:    "Alice Example <alice@example.test>",
+		To:      "Dev User <dev@example.test>",
+		Cc:      "Carol Example <carol@example.test>",
+		Body:    "Original body",
+	})
+	for _, want := range []string{
+		"---------- Forwarded message ---------",
+		"From: Alice Example <alice@example.test>",
+		"Subject: Hello",
+		"To: Dev User <dev@example.test>",
+		"Cc: Carol Example <carol@example.test>",
+		"Original body",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("forwardedBody() missing %q in:\n%s", want, got)
+		}
 	}
 }

@@ -16,6 +16,8 @@ type Config struct {
 	RedirectURI  string
 	Database     DatabaseConfig
 	MailCrypto   MailCryptoConfig
+	IMAP         IMAPConfig
+	SMTP         SMTPConfig
 }
 
 type DatabaseConfig struct {
@@ -31,6 +33,14 @@ type MailCryptoConfig struct {
 	KEKVersion int16
 }
 
+type IMAPConfig struct {
+	AllowInsecureAuth bool
+}
+
+type SMTPConfig struct {
+	AllowInsecureAuth bool
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		Issuer:      os.Getenv("OIDC_ISSUER"),
@@ -44,6 +54,12 @@ func Load() (Config, error) {
 		},
 		MailCrypto: MailCryptoConfig{
 			KEKFile: os.Getenv("MAIL_ACCOUNT_KEK_FILE"),
+		},
+		IMAP: IMAPConfig{
+			AllowInsecureAuth: readBoolEnv("IMAP_ALLOW_INSECURE_AUTH"),
+		},
+		SMTP: SMTPConfig{
+			AllowInsecureAuth: readBoolEnv("SMTP_ALLOW_INSECURE_AUTH"),
 		},
 	}
 
@@ -95,6 +111,11 @@ func Load() (Config, error) {
 	cfg.Database.Password = databasePassword
 
 	return cfg, nil
+}
+
+func readBoolEnv(name string) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
 func readKEKVersion() (int16, error) {
