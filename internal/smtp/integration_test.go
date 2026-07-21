@@ -32,6 +32,9 @@ func TestSendIntegration(t *testing.T) {
 		To:      envOrDefault("SHIROYAGI_SMTP_TO", "recipient@example.test"),
 		Subject: "Shiroyagi SMTP integration test",
 		Body:    "This message was sent by the Shiroyagi SMTP integration test.",
+		Attachments: []Attachment{{
+			Filename: "integration.txt", ContentType: "text/plain", Data: []byte("SMTP attachment integration test.\n"),
+		}},
 	})
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)

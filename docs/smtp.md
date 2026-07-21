@@ -33,6 +33,13 @@ mail account list, enter a recipient, subject, and body, then send the message.
 The sent message should appear in the Mailpit Web UI at
 http://localhost:8025.
 
+Messages with attachments are sent as `multipart/mixed`, with attachments
+base64 encoded and marked with attachment disposition. A compose request may
+contain at most 10 files and 25 MiB of attachment data in total. Replying does
+not include attachments from the original message. Forwarding includes the
+original attachments as opaque bytes, plus any files explicitly selected in
+the forward form.
+
 ## Security modes
 
 - `Plain` connects without TLS. This is intended for the development Mailpit

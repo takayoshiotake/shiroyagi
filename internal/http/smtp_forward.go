@@ -91,6 +91,10 @@ func (s *Server) loadForwardContext(w http.ResponseWriter, r *http.Request) (for
 }
 
 func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form composeMessageForm) {
+	attachmentPolicy := "The original message has no attachments."
+	if len(original.Attachments) > 0 {
+		attachmentPolicy = fmt.Sprintf("The %d original attachment(s) will be included automatically.", len(original.Attachments))
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = fmt.Fprintf(w, `<!doctype html>
 <html>
@@ -115,7 +119,8 @@ func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail,
     <dt>References</dt><dd>%s</dd>
   </dl>
 
-  <form method="post" action="/mail-accounts/%s/send">
+  <p>%s</p>
+  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
     <input type="hidden" name="mode" value="forward">
     <input type="hidden" name="mailbox" value="%s">
     <input type="hidden" name="uid" value="%d">
@@ -139,6 +144,11 @@ func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail,
         <textarea name="body" rows="18" cols="72" required>%s</textarea>
       </label>
     </p>
+    <p>
+      <label>Additional attachments (up to 10 files, 25 MiB total including originals)<br>
+        <input type="file" name="attachments" multiple>
+      </label>
+    </p>
     <button type="submit">Send forward</button>
   </form>
 </body>
@@ -155,6 +165,7 @@ func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail,
 		html.EscapeString(messageHeaderValue(original.MessageID)),
 		html.EscapeString(messageHeaderValue(original.InReplyTo)),
 		html.EscapeString(messageHeaderValue(original.References)),
+		html.EscapeString(attachmentPolicy),
 		html.EscapeString(account.ID),
 		html.EscapeString(mailbox),
 		original.UID,

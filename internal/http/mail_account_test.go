@@ -1,11 +1,14 @@
 package httpserver
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
+	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
 
 func TestMailAccountAAD(t *testing.T) {
@@ -221,5 +224,82 @@ func TestForwardedBodyIncludesHeadersAndBody(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("forwardedBody() missing %q in:\n%s", want, got)
 		}
+	}
+}
+
+func TestSafeDownloadFilenameSeparatesOriginalDisplayName(t *testing.T) {
+	original := "../../invoice.exe"
+	if got := displayAttachmentFilename(original); got != original {
+		t.Fatalf("display filename = %q, want original %q", got, original)
+	}
+	if got := safeDownloadFilename(original); got != "invoice.exe.download" {
+		t.Fatalf("download filename = %q, want invoice.exe.download", got)
+	}
+}
+
+func TestWriteAttachmentDownloadForcesOpaqueDownload(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	writeAttachmentDownload(recorder, mailimap.Attachment{Filename: "../../invoice.exe", Data: []byte("data")})
+	response := recorder.Result()
+	if got := response.Header.Get("Content-Type"); got != "application/octet-stream" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if got := response.Header.Get("Content-Disposition"); !strings.Contains(got, "attachment") || !strings.Contains(got, "invoice.exe.download") {
+		t.Fatalf("Content-Disposition = %q", got)
+	}
+	if got := response.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q", got)
+	}
+	if got := response.Header.Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("Cache-Control = %q", got)
+	}
+	if recorder.Body.String() != "data" {
+		t.Fatalf("body = %q", recorder.Body.String())
+	}
+}
+
+func TestRenderAttachmentListShowsEscapedOriginalFilename(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	renderAttachmentList(recorder, mailaccount.Detail{ID: "account-1"}, "INBOX", mailimap.Message{
+		UID: 42,
+		Attachments: []mailimap.Attachment{{
+			PartID: "2", Filename: "../<original>.txt", ContentType: "text/plain", Size: 4,
+		}},
+	})
+	body := recorder.Body.String()
+	for _, want := range []string{"../&lt;original&gt;.txt", "/messages/42/attachments/2", "text/plain", "4 bytes"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("attachment list missing %q in %s", want, body)
+		}
+	}
+	if strings.Contains(body, "../<original>.txt") {
+		t.Fatalf("attachment list contains unescaped filename: %s", body)
+	}
+}
+
+func TestReadUploadedAttachments(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("attachments", "report.txt")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	_, _ = part.Write([]byte("report"))
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := req.ParseMultipartForm(1024); err != nil {
+		t.Fatalf("ParseMultipartForm() error = %v", err)
+	}
+	defer req.MultipartForm.RemoveAll()
+
+	attachments, err := readUploadedAttachments(req)
+	if err != nil {
+		t.Fatalf("readUploadedAttachments() error = %v", err)
+	}
+	if len(attachments) != 1 || attachments[0].Filename != "report.txt" || string(attachments[0].Data) != "report" {
+		t.Fatalf("attachments = %#v", attachments)
 	}
 }

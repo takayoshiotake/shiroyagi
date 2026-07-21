@@ -1,0 +1,23 @@
+Return-Path: <alice@example.test>
+Delivered-To: dev@example.test
+Date: Tue, 14 Jul 2026 10:30:00 +0900
+From: Alice Example <alice@example.test>
+To: Dev User <dev@example.test>
+Subject: Attachment fixture
+Message-ID: <fixture-006@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="shiroyagi-fixture-006"
+
+--shiroyagi-fixture-006
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+This message has a small text attachment with an intentionally unsafe original filename.
+
+--shiroyagi-fixture-006
+Content-Type: text/plain; charset=utf-8; name="../original-report.txt"
+Content-Disposition: attachment; filename="../original-report.txt"
+Content-Transfer-Encoding: base64
+
+VGhpcyBpcyB0aGUgYXR0YWNobWVudCBmaXh0dXJlLgo=
+--shiroyagi-fixture-006--

@@ -177,8 +177,28 @@ Forward check:
    support; if the SMTP send succeeds but the flag update fails, the forward
    remains sent and the result page shows a warning.
 
-Attachments are handled separately in #12. Forwarding currently includes the
-inline text body only.
+Attachment check:
+
+1. Recreate or reseed the Dovecot development volume so the `Attachment
+   fixture` message is available.
+2. Open that message and confirm that `../original-report.txt` is shown as the
+   original attachment name.
+3. Download it and confirm that the browser is offered `original-report.txt`
+   and that the file contains `This is the attachment fixture.`
+4. Open `Send`, attach one or more files, and send the message. Confirm in
+   Mailpit that the message is `multipart/mixed` and the files are attached.
+5. Reply to the attachment fixture and confirm that the original attachment is
+   not included automatically. Files selected in the reply form are included.
+6. Forward the attachment fixture and confirm in Mailpit that its original
+   attachment is included. Additional files selected in the forward form are
+   included as well.
+
+Shiroyagi treats attachments as opaque bytes: it does not preview, execute, or
+extract them. Uploads allow at most 10 files and 25 MiB total. Received messages
+are limited to 50 MiB, individual decoded attachments to 25 MiB, MIME nesting
+to 10 levels, and MIME part count to 100. Downloads always use attachment
+disposition, disable content sniffing, and use a sanitized filename; the
+original filename remains visible on the message page.
 
 ## Build
 

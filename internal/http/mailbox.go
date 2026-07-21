@@ -214,10 +214,7 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
     <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply">Reply</a>
     <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply-all">Reply all</a>
     <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/forward">Forward</a>
-  </p>
-  <pre>%s</pre>
-</body>
-</html>`,
+  </p>`,
 		html.EscapeString(subjectOrUntitled(message.Subject)),
 		html.EscapeString(account.ID),
 		url.PathEscape(mailbox),
@@ -241,8 +238,12 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(account.ID),
 		url.PathEscape(mailbox),
 		message.UID,
-		html.EscapeString(message.Body),
 	)
+	renderAttachmentList(w, account, mailbox, message)
+	_, _ = fmt.Fprintf(w, `
+  <pre>%s</pre>
+</body>
+</html>`, html.EscapeString(message.Body))
 }
 
 func (s *Server) imapReaderAccount(userID string, account mailaccount.Detail) (mailimap.Account, error) {

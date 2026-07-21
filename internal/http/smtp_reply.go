@@ -157,7 +157,8 @@ func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, m
     <dt>References</dt><dd>%s</dd>
   </dl>
 
-  <form method="post" action="/mail-accounts/%s/send">
+  <p>Original attachments are not included in replies.</p>
+  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
     <input type="hidden" name="mode" value="%s">
     <input type="hidden" name="mailbox" value="%s">
     <input type="hidden" name="uid" value="%d">
@@ -179,6 +180,11 @@ func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, m
     <p>
       <label>Body<br>
         <textarea name="body" rows="16" cols="72" required>%s</textarea>
+      </label>
+    </p>
+    <p>
+      <label>Attachments (up to 10 files, 25 MiB total)<br>
+        <input type="file" name="attachments" multiple>
       </label>
     </p>
     <button type="submit">%s</button>

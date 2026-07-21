@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -57,7 +58,15 @@ func (s *Server) handleNewMessage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := r.ParseForm(); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
+	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if mediaType == "multipart/form-data" {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			http.Error(w, "invalid or oversized message form", http.StatusRequestEntityTooLarge)
+			return
+		}
+		defer r.MultipartForm.RemoveAll()
+	} else if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -65,6 +74,11 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	form, ok := parseComposeMessageForm(r)
 	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	uploadedAttachments, err := readUploadedAttachments(r)
+	if err != nil {
+		http.Error(w, "invalid attachment: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -97,11 +111,12 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	message := mailsmtp.Message{
-		From:    account.EmailAddress,
-		To:      form.To,
-		Cc:      form.Cc,
-		Subject: form.Subject,
-		Body:    form.Body,
+		From:        account.EmailAddress,
+		To:          form.To,
+		Cc:          form.Cc,
+		Subject:     form.Subject,
+		Body:        form.Body,
+		Attachments: uploadedAttachments,
 	}
 	if form.Mode == composeModeReply || form.Mode == composeModeReplyAll {
 		if original.MessageID == "" {
@@ -110,6 +125,21 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		message.InReplyTo = original.MessageID
 		message.References = replyReferences(original)
+	}
+	if form.Mode == composeModeForward && len(original.Attachments) > 0 {
+		imapAccount, err := s.imapReaderAccount(session.Subject, account)
+		if err != nil {
+			log.Printf("prepare imap account %s for forwarded attachments: %v", account.ID, err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		attachments, err := mailimap.GetAttachments(r.Context(), imapAccount, form.Mailbox, form.UID)
+		if err != nil {
+			log.Printf("load forwarded attachments account=%s mailbox=%q uid=%d: %v", account.ID, form.Mailbox, form.UID, err)
+			renderIMAPError(w, account, "Could not load original attachments: "+err.Error())
+			return
+		}
+		message.Attachments = append(message.Attachments, smtpAttachments(attachments)...)
 	}
 	if err := mailsmtp.Send(r.Context(), smtpAccount, message); err != nil {
 		log.Printf("send %s message account=%s mailbox=%q uid=%d: %v", form.Mode, account.ID, form.Mailbox, form.UID, err)
@@ -333,7 +363,7 @@ func renderMessageForm(w http.ResponseWriter, account mailaccount.Detail, form c
     %s
   </p>
 
-  <form method="post" action="/mail-accounts/%s/send">
+  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
     <input type="hidden" name="mode" value="new">
     <p>
       <label>To<br>
@@ -348,6 +378,11 @@ func renderMessageForm(w http.ResponseWriter, account mailaccount.Detail, form c
     <p>
       <label>Body<br>
         <textarea name="body" rows="12" cols="72" required>%s</textarea>
+      </label>
+    </p>
+    <p>
+      <label>Attachments (up to 10 files, 25 MiB total)<br>
+        <input type="file" name="attachments" multiple>
       </label>
     </p>
     <button type="submit">Send</button>
