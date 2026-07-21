@@ -27,6 +27,13 @@ or:
 docker compose -f compose.yaml -f compose.dev.yaml up
 ```
 
+## UI Design
+
+When creating or modifying UI, templates, or CSS, follow
+[`docs/design.md`](docs/design.md).
+
+Reuse existing layouts and components before introducing new patterns.
+
 ## Security
 
 - Never store plaintext mail passwords.
