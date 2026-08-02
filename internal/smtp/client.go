@@ -1,13 +1,19 @@
 package smtp
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/mail"
 	stdsmtp "net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -29,13 +35,20 @@ type Account struct {
 }
 
 type Message struct {
-	From       string
-	To         string
-	Cc         string
-	Subject    string
-	Body       string
-	InReplyTo  string
-	References string
+	From        string
+	To          string
+	Cc          string
+	Subject     string
+	Body        string
+	InReplyTo   string
+	References  string
+	Attachments []Attachment
+}
+
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
 }
 
 type OperationError struct {
@@ -58,6 +71,10 @@ func (e *OperationError) Unwrap() error {
 func Send(ctx context.Context, account Account, message Message) error {
 	if err := validateMessage(message); err != nil {
 		return wrapError("validate smtp message", account, err)
+	}
+	payload, err := buildMessage(message)
+	if err != nil {
+		return wrapError("build smtp message", account, err)
 	}
 
 	client, err := connect(ctx, account)
@@ -94,7 +111,7 @@ func Send(ctx context.Context, account Account, message Message) error {
 	if err != nil {
 		return wrapError("start smtp data", account, err)
 	}
-	if _, err := writer.Write(buildMessage(message)); err != nil {
+	if _, err := writer.Write(payload); err != nil {
 		_ = writer.Close()
 		return wrapError("write smtp data", account, err)
 	}
@@ -182,7 +199,7 @@ func connect(ctx context.Context, account Account) (*stdsmtp.Client, error) {
 	}
 }
 
-func buildMessage(message Message) []byte {
+func buildMessage(message Message) ([]byte, error) {
 	headers := []string{
 		"From: " + message.From,
 		"To: " + message.To,
@@ -197,12 +214,66 @@ func buildMessage(message Message) []byte {
 	if message.References != "" {
 		headers = append(headers, "References: "+sanitizeHeaderValue(message.References))
 	}
-	headers = append(headers,
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"Content-Transfer-Encoding: 8bit",
-	)
-	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + normalizeBody(message.Body))
+	headers = append(headers, "MIME-Version: 1.0")
+	if len(message.Attachments) == 0 {
+		headers = append(headers,
+			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Transfer-Encoding: 8bit",
+		)
+		return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + normalizeBody(message.Body)), nil
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	headers = append(headers, "Content-Type: "+mime.FormatMediaType("multipart/mixed", map[string]string{"boundary": writer.Boundary()}))
+	textHeader := make(textproto.MIMEHeader)
+	textHeader.Set("Content-Type", "text/plain; charset=UTF-8")
+	textHeader.Set("Content-Transfer-Encoding", "8bit")
+	part, err := writer.CreatePart(textHeader)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.WriteString(part, normalizeBody(message.Body)); err != nil {
+		return nil, err
+	}
+	for _, attachment := range message.Attachments {
+		partHeader := make(textproto.MIMEHeader)
+		partHeader.Set("Content-Type", safeContentType(attachment.ContentType))
+		partHeader.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": attachment.Filename}))
+		partHeader.Set("Content-Transfer-Encoding", "base64")
+		part, err := writer.CreatePart(partHeader)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := io.WriteString(part, encodeMIMEBase64(attachment.Data)); err != nil {
+			return nil, err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + body.String()), nil
+}
+
+func safeContentType(value string) string {
+	mediaType, _, err := mime.ParseMediaType(value)
+	if err != nil || !strings.Contains(mediaType, "/") {
+		return "application/octet-stream"
+	}
+	return strings.ToLower(mediaType)
+}
+
+func encodeMIMEBase64(data []byte) string {
+	encoded := base64.StdEncoding.EncodeToString(data)
+	var result strings.Builder
+	for len(encoded) > 76 {
+		result.WriteString(encoded[:76])
+		result.WriteString("\r\n")
+		encoded = encoded[76:]
+	}
+	result.WriteString(encoded)
+	result.WriteString("\r\n")
+	return result.String()
 }
 
 func normalizeBody(body string) string {
@@ -223,6 +294,16 @@ func validateMessage(message Message) error {
 	}
 	if _, err := messageRecipients(message); err != nil {
 		return err
+	}
+	var attachmentBytes int64
+	for _, attachment := range message.Attachments {
+		if attachment.Filename == "" {
+			return errors.New("attachment filename is required")
+		}
+		attachmentBytes += int64(len(attachment.Data))
+		if attachmentBytes > 25<<20 {
+			return errors.New("attachments exceed 25 MiB total limit")
+		}
 	}
 	return nil
 }

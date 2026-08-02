@@ -10,6 +10,7 @@ Current:
   `RFC822.SIZE`
 - message body via `BODY.PEEK[]`
 - inline `text/plain` body display, with `text/html` as a fallback
+- attachment metadata display and authenticated downloads by MIME part ID
 - non-TLS `IMAP` LOGIN is allowed for `localhost`; other hosts require
   `IMAP_ALLOW_INSECURE_AUTH=true`
 - `\Answered` is added to the original message after a successful reply
@@ -19,6 +20,12 @@ Current:
 
 Errors are logged by the HTTP handlers and shown on the IMAP error page without
 logging mail passwords.
+
+Attachments are treated as opaque bytes and are never previewed, executed, or
+extracted. Message parsing is bounded to 50 MiB, 100 MIME parts, and 10 nested
+MIME levels; each decoded attachment is limited to 25 MiB. The original
+filename is display-only. Downloads use a sanitized filename,
+`application/octet-stream`, attachment disposition, and `nosniff`.
 
 Initial protocol scope:
 

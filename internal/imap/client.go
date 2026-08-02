@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	goimap "github.com/emersion/go-imap"
 	goimapclient "github.com/emersion/go-imap/client"
@@ -25,9 +27,13 @@ const (
 	SecurityIMAP  = "imap"
 	SecurityIMAPS = "imaps"
 
-	defaultLimit  = 100
-	bodyLimit     = 2 << 20
-	forwardedFlag = "$Forwarded"
+	defaultLimit    = 100
+	bodyLimit       = 2 << 20
+	messageLimit    = 50 << 20
+	attachmentLimit = 25 << 20
+	maxMIMEParts    = 100
+	maxMIMEDepth    = 10
+	forwardedFlag   = "$Forwarded"
 )
 
 type Account struct {
@@ -50,19 +56,28 @@ type MessageSummary struct {
 }
 
 type Message struct {
-	UID        uint32
-	Subject    string
-	From       string
-	ReplyTo    string
-	To         string
-	Cc         string
-	Date       time.Time
-	Body       string
-	MessageID  string
-	InReplyTo  string
-	References string
-	Answered   bool
-	Forwarded  bool
+	UID         uint32
+	Subject     string
+	From        string
+	ReplyTo     string
+	To          string
+	Cc          string
+	Date        time.Time
+	Body        string
+	MessageID   string
+	InReplyTo   string
+	References  string
+	Answered    bool
+	Forwarded   bool
+	Attachments []Attachment
+}
+
+type Attachment struct {
+	PartID      string
+	Filename    string
+	ContentType string
+	Size        int64
+	Data        []byte
 }
 
 type OperationError struct {
@@ -151,15 +166,85 @@ func ListMessages(ctx context.Context, account Account, mailbox string, limit ui
 }
 
 func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32) (Message, error) {
-	client, err := connect(ctx, account)
+	bodyBytes, envelope, flags, fetchedUID, err := fetchRawMessage(ctx, account, mailbox, uid)
 	if err != nil {
 		return Message{}, err
+	}
+	parsed, err := parseMessageContent(bodyBytes)
+	if err != nil {
+		return Message{}, wrapError("parse mailbox message body", account, mailbox, uid, err)
+	}
+	headers, err := extractHeaders(bodyBytes)
+	if err != nil {
+		return Message{}, wrapError("parse mailbox message headers", account, mailbox, uid, err)
+	}
+
+	message := Message{
+		UID:         fetchedUID,
+		Body:        parsed.body,
+		Attachments: attachmentMetadata(parsed.attachments),
+		InReplyTo:   headers.Get("In-Reply-To"),
+		References:  headers.Get("References"),
+		Answered:    hasFlag(flags, goimap.AnsweredFlag),
+		Forwarded:   hasFlag(flags, forwardedFlag),
+	}
+	if envelope != nil {
+		message.Subject = envelope.Subject
+		message.From = formatAddresses(envelope.From)
+		message.ReplyTo = firstAddress(envelope.ReplyTo)
+		message.To = formatAddresses(envelope.To)
+		message.Cc = formatAddresses(envelope.Cc)
+		message.Date = envelope.Date
+		message.MessageID = envelope.MessageId
+		if message.InReplyTo == "" {
+			message.InReplyTo = envelope.InReplyTo
+		}
+	}
+	if message.MessageID == "" {
+		message.MessageID = headers.Get("Message-ID")
+	}
+	return message, nil
+}
+
+func GetAttachment(ctx context.Context, account Account, mailbox string, uid uint32, partID string) (Attachment, error) {
+	bodyBytes, _, _, _, err := fetchRawMessage(ctx, account, mailbox, uid)
+	if err != nil {
+		return Attachment{}, err
+	}
+	parsed, err := parseMessageContent(bodyBytes)
+	if err != nil {
+		return Attachment{}, wrapError("parse mailbox attachment", account, mailbox, uid, err)
+	}
+	for _, attachment := range parsed.attachments {
+		if attachment.PartID == partID {
+			return attachment, nil
+		}
+	}
+	return Attachment{}, ErrAttachmentNotFound
+}
+
+func GetAttachments(ctx context.Context, account Account, mailbox string, uid uint32) ([]Attachment, error) {
+	bodyBytes, _, _, _, err := fetchRawMessage(ctx, account, mailbox, uid)
+	if err != nil {
+		return nil, err
+	}
+	parsed, err := parseMessageContent(bodyBytes)
+	if err != nil {
+		return nil, wrapError("parse mailbox attachments", account, mailbox, uid, err)
+	}
+	return parsed.attachments, nil
+}
+
+func fetchRawMessage(ctx context.Context, account Account, mailbox string, uid uint32) ([]byte, *goimap.Envelope, []string, uint32, error) {
+	client, err := connect(ctx, account)
+	if err != nil {
+		return nil, nil, nil, 0, err
 	}
 	defer client.Close()
 	defer client.Logout()
 
 	if _, err := client.Select(mailbox, true); err != nil {
-		return Message{}, wrapError("select mailbox", account, mailbox, uid, err)
+		return nil, nil, nil, 0, wrapError("select mailbox", account, mailbox, uid, err)
 	}
 
 	bodySection := &goimap.BodySectionName{Peek: true}
@@ -172,58 +257,27 @@ func GetMessage(ctx context.Context, account Account, mailbox string, uid uint32
 		goimap.FetchUid,
 	})
 	if err != nil {
-		return Message{}, wrapError("fetch mailbox message", account, mailbox, uid, err)
+		return nil, nil, nil, 0, wrapError("fetch mailbox message", account, mailbox, uid, err)
 	}
 	if len(messages) == 0 {
-		return Message{}, ErrMessageNotFound
+		return nil, nil, nil, 0, ErrMessageNotFound
 	}
 
 	msg := messages[0]
 	bodyReader := msg.GetBody(bodySection)
 	if bodyReader == nil {
-		return Message{}, wrapError("fetch mailbox message body", account, mailbox, uid, errors.New("empty body"))
+		return nil, nil, nil, 0, wrapError("fetch mailbox message body", account, mailbox, uid, errors.New("empty body"))
 	}
 
-	bodyBytes, err := io.ReadAll(bodyReader)
+	bodyBytes, err := readLimited(bodyReader, messageLimit)
 	if err != nil {
-		return Message{}, wrapError("read mailbox message body", account, mailbox, uid, err)
+		return nil, nil, nil, 0, wrapError("read mailbox message body", account, mailbox, uid, err)
 	}
-	body, err := extractTextBody(bodyBytes)
-	if err != nil {
-		return Message{}, wrapError("parse mailbox message body", account, mailbox, uid, err)
-	}
-	headers, err := extractHeaders(bodyBytes)
-	if err != nil {
-		return Message{}, wrapError("parse mailbox message headers", account, mailbox, uid, err)
-	}
-
-	message := Message{
-		UID:        msg.Uid,
-		Body:       body,
-		InReplyTo:  headers.Get("In-Reply-To"),
-		References: headers.Get("References"),
-		Answered:   hasFlag(msg.Flags, goimap.AnsweredFlag),
-		Forwarded:  hasFlag(msg.Flags, forwardedFlag),
-	}
-	if msg.Envelope != nil {
-		message.Subject = msg.Envelope.Subject
-		message.From = formatAddresses(msg.Envelope.From)
-		message.ReplyTo = firstAddress(msg.Envelope.ReplyTo)
-		message.To = formatAddresses(msg.Envelope.To)
-		message.Cc = formatAddresses(msg.Envelope.Cc)
-		message.Date = msg.Envelope.Date
-		message.MessageID = msg.Envelope.MessageId
-		if message.InReplyTo == "" {
-			message.InReplyTo = msg.Envelope.InReplyTo
-		}
-	}
-	if message.MessageID == "" {
-		message.MessageID = headers.Get("Message-ID")
-	}
-	return message, nil
+	return bodyBytes, msg.Envelope, msg.Flags, msg.Uid, nil
 }
 
 var ErrMessageNotFound = errors.New("message not found")
+var ErrAttachmentNotFound = errors.New("attachment not found")
 
 func MarkAnswered(ctx context.Context, account Account, mailbox string, uid uint32) error {
 	return markMessageFlag(ctx, account, mailbox, uid, goimap.AnsweredFlag, "mark mailbox message answered")
@@ -405,18 +459,8 @@ func reverseSummaries(summaries []MessageSummary) {
 }
 
 func extractTextBody(raw []byte) (string, error) {
-	msg, err := mail.ReadMessage(bytes.NewReader(raw))
-	if err != nil {
-		return "", err
-	}
-	body, ok, err := extractEntityText(msg.Header, msg.Body)
-	if err != nil {
-		return "", err
-	}
-	if !ok {
-		return "(no text body)", nil
-	}
-	return body, nil
+	parsed, err := parseMessageContent(raw)
+	return parsed.body, err
 }
 
 func extractHeaders(raw []byte) (mail.Header, error) {
@@ -427,59 +471,109 @@ func extractHeaders(raw []byte) (mail.Header, error) {
 	return msg.Header, nil
 }
 
-func extractEntityText(header mail.Header, body io.Reader) (string, bool, error) {
+type parsedMessageContent struct {
+	body        string
+	plainBody   string
+	htmlBody    string
+	attachments []Attachment
+	parts       int
+}
+
+func parseMessageContent(raw []byte) (parsedMessageContent, error) {
+	msg, err := mail.ReadMessage(bytes.NewReader(raw))
+	if err != nil {
+		return parsedMessageContent{}, err
+	}
+	parsed := parsedMessageContent{}
+	if err := parseEntity(msg.Header, msg.Body, "", 0, &parsed); err != nil {
+		return parsedMessageContent{}, err
+	}
+	switch {
+	case parsed.plainBody != "":
+		parsed.body = parsed.plainBody
+	case parsed.htmlBody != "":
+		parsed.body = parsed.htmlBody
+	default:
+		parsed.body = "(no text body)"
+	}
+	return parsed, nil
+}
+
+func parseEntity(header mail.Header, body io.Reader, partID string, depth int, parsed *parsedMessageContent) error {
+	if depth > maxMIMEDepth {
+		return fmt.Errorf("MIME nesting exceeds %d levels", maxMIMEDepth)
+	}
+	parsed.parts++
+	if parsed.parts > maxMIMEParts {
+		return fmt.Errorf("MIME message exceeds %d parts", maxMIMEParts)
+	}
+
 	mediaType, params, err := parseContentType(header.Get("Content-Type"))
 	if err != nil {
-		return "", false, err
+		return err
 	}
 
 	if strings.HasPrefix(mediaType, "multipart/") {
 		boundary := params["boundary"]
 		if boundary == "" {
-			return "", false, fmt.Errorf("missing multipart boundary")
+			return fmt.Errorf("missing multipart boundary")
 		}
 		reader := multipart.NewReader(body, boundary)
-		var htmlCandidate string
+		partNumber := 0
 		for {
 			part, err := reader.NextPart()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				return "", false, err
+				return err
 			}
-			partBody, ok, err := extractEntityText(mail.Header(part.Header), part)
-			if err != nil {
-				return "", false, err
+			partNumber++
+			childID := strconv.Itoa(partNumber)
+			if partID != "" {
+				childID = partID + "." + childID
 			}
-			if ok {
-				partType, _, _ := parseContentType(part.Header.Get("Content-Type"))
-				if partType == "text/plain" {
-					return partBody, true, nil
-				}
-				if htmlCandidate == "" {
-					htmlCandidate = partBody
-				}
+			if err := parseEntity(mail.Header(part.Header), part, childID, depth+1, parsed); err != nil {
+				return err
 			}
 		}
-		if htmlCandidate != "" {
-			return htmlCandidate, true, nil
+		return nil
+	}
+
+	if partID == "" {
+		partID = "1"
+	}
+	filename := attachmentFilename(header, params)
+	if isAttachment(header.Get("Content-Disposition")) || filename != "" {
+		decoded, err := decodeTransferEncodingLimited(header.Get("Content-Transfer-Encoding"), body, attachmentLimit)
+		if err != nil {
+			return fmt.Errorf("read attachment part %s: %w", partID, err)
 		}
-		return "", false, nil
+		if filename == "" {
+			filename = "(unnamed attachment)"
+		}
+		parsed.attachments = append(parsed.attachments, Attachment{
+			PartID: partID, Filename: filename, ContentType: mediaType,
+			Size: int64(len(decoded)), Data: decoded,
+		})
+		return nil
 	}
 
 	if mediaType != "text/plain" && mediaType != "text/html" {
-		return "", false, nil
-	}
-	if isAttachment(header.Get("Content-Disposition")) {
-		return "", false, nil
+		return nil
 	}
 
-	decoded, err := decodeTransferEncoding(header.Get("Content-Transfer-Encoding"), body)
+	decoded, err := decodeTransferEncodingLimited(header.Get("Content-Transfer-Encoding"), body, bodyLimit)
 	if err != nil {
-		return "", false, err
+		return err
 	}
-	return string(decoded), true, nil
+	if mediaType == "text/plain" && parsed.plainBody == "" {
+		parsed.plainBody = string(decoded)
+	}
+	if mediaType == "text/html" && parsed.htmlBody == "" {
+		parsed.htmlBody = string(decoded)
+	}
+	return nil
 }
 
 func parseContentType(value string) (string, map[string]string, error) {
@@ -494,23 +588,65 @@ func parseContentType(value string) (string, map[string]string, error) {
 }
 
 func decodeTransferEncoding(encoding string, body io.Reader) ([]byte, error) {
+	return decodeTransferEncodingLimited(encoding, body, bodyLimit)
+}
+
+func decodeTransferEncodingLimited(encoding string, body io.Reader, limit int64) ([]byte, error) {
+	var reader io.Reader = body
 	switch strings.ToLower(strings.TrimSpace(encoding)) {
 	case "base64":
-		return io.ReadAll(io.LimitReader(base64.NewDecoder(base64.StdEncoding, body), bodyLimit))
+		reader = base64.NewDecoder(base64.StdEncoding, body)
 	case "quoted-printable":
-		return io.ReadAll(io.LimitReader(quotedprintable.NewReader(body), bodyLimit))
-	default:
-		return io.ReadAll(io.LimitReader(body, bodyLimit))
+		reader = quotedprintable.NewReader(body)
 	}
+	return readLimited(reader, limit)
+}
+
+func readLimited(reader io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("content exceeds %d byte limit", limit)
+	}
+	return data, nil
+}
+
+func attachmentFilename(header mail.Header, contentTypeParams map[string]string) string {
+	_, dispositionParams, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
+	filename := dispositionParams["filename"]
+	if filename == "" {
+		filename = contentTypeParams["name"]
+	}
+	if decoded, err := new(mime.WordDecoder).DecodeHeader(filename); err == nil {
+		filename = decoded
+	}
+	if !utf8.ValidString(filename) {
+		filename = strings.ToValidUTF8(filename, "�")
+	}
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || r == '\u061c' || r == '\u200e' || r == '\u200f' ||
+			(r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069') {
+			return '�'
+		}
+		return r
+	}, filename)
+}
+
+func attachmentMetadata(attachments []Attachment) []Attachment {
+	metadata := make([]Attachment, len(attachments))
+	for i, attachment := range attachments {
+		attachment.Data = nil
+		metadata[i] = attachment
+	}
+	return metadata
 }
 
 func isAttachment(disposition string) bool {
 	if disposition == "" {
 		return false
 	}
-	mediaType, _, err := mime.ParseMediaType(disposition)
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(mediaType, "attachment")
+	dispositionType, _, _ := strings.Cut(disposition, ";")
+	return strings.EqualFold(strings.TrimSpace(dispositionType), "attachment")
 }

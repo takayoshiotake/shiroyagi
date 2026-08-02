@@ -49,6 +49,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /mail-accounts/{id}/send", s.requireSession(s.handleSendMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}", s.requireSession(s.handleMailbox))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}", s.requireSession(s.handleMessage))
+	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/attachments/{part}", s.requireSession(s.handleAttachmentDownload))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply", s.requireSession(s.handleNewReplyMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/reply-all", s.requireSession(s.handleNewReplyAllMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}/messages/{uid}/forward", s.requireSession(s.handleNewForwardMessage))

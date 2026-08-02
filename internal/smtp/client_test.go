@@ -1,19 +1,29 @@
 package smtp
 
 import (
+	"bytes"
+	"encoding/base64"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/mail"
 	"net/smtp"
 	"strings"
 	"testing"
 )
 
 func TestBuildMessage(t *testing.T) {
-	msg := buildMessage(Message{
+	msg := Message{
 		From:    "sender@example.test",
 		To:      "recipient@example.test",
 		Subject: "Hello",
 		Body:    "line 1\nline 2",
-	})
-	got := string(msg)
+	}
+	encoded, err := buildMessage(msg)
+	if err != nil {
+		t.Fatalf("buildMessage() error = %v", err)
+	}
+	got := string(encoded)
 	for _, want := range []string{
 		"From: sender@example.test\r\n",
 		"To: recipient@example.test\r\n",
@@ -28,7 +38,7 @@ func TestBuildMessage(t *testing.T) {
 }
 
 func TestBuildMessageAddsReplyHeaders(t *testing.T) {
-	msg := buildMessage(Message{
+	msg := Message{
 		From:       "sender@example.test",
 		To:         "recipient@example.test",
 		Cc:         "copy@example.test",
@@ -36,8 +46,12 @@ func TestBuildMessageAddsReplyHeaders(t *testing.T) {
 		Body:       "reply",
 		InReplyTo:  "<original@example.test>",
 		References: "<root@example.test> <original@example.test>",
-	})
-	got := string(msg)
+	}
+	encoded, err := buildMessage(msg)
+	if err != nil {
+		t.Fatalf("buildMessage() error = %v", err)
+	}
+	got := string(encoded)
 	for _, want := range []string{
 		"Cc: copy@example.test\r\n",
 		"In-Reply-To: <original@example.test>\r\n",
@@ -46,6 +60,42 @@ func TestBuildMessageAddsReplyHeaders(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("message missing %q in:\n%s", want, got)
 		}
+	}
+}
+
+func TestBuildMessageAddsMultipartAttachment(t *testing.T) {
+	encoded, err := buildMessage(Message{
+		From: "sender@example.test", To: "recipient@example.test", Subject: "Files", Body: "body",
+		Attachments: []Attachment{{Filename: "report.pdf", ContentType: "application/pdf", Data: []byte("pdf")}},
+	})
+	if err != nil {
+		t.Fatalf("buildMessage() error = %v", err)
+	}
+	message, err := mail.ReadMessage(bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	_, params, err := mime.ParseMediaType(message.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("ParseMediaType() error = %v", err)
+	}
+	reader := multipart.NewReader(message.Body, params["boundary"])
+	if _, err := reader.NextPart(); err != nil {
+		t.Fatalf("read text part: %v", err)
+	}
+	attachment, err := reader.NextPart()
+	if err != nil {
+		t.Fatalf("read attachment part: %v", err)
+	}
+	if attachment.FileName() != "report.pdf" || attachment.Header.Get("Content-Type") != "application/pdf" {
+		t.Fatalf("attachment headers = %#v", attachment.Header)
+	}
+	data, err := io.ReadAll(base64.NewDecoder(base64.StdEncoding, attachment))
+	if err != nil {
+		t.Fatalf("read attachment: %v", err)
+	}
+	if string(data) != "pdf" {
+		t.Fatalf("attachment data = %q, want pdf", data)
 	}
 }
 

@@ -42,6 +42,52 @@ func TestExtractTextBodyBase64(t *testing.T) {
 	}
 }
 
+func TestParseMessageContentListsAndDecodesAttachments(t *testing.T) {
+	raw := []byte("Subject: Files\r\nContent-Type: multipart/mixed; boundary=mix\r\n\r\n" +
+		"--mix\r\nContent-Type: text/plain\r\n\r\nhello\r\n" +
+		"--mix\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=report.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\ncGRm\r\n" +
+		"--mix--\r\n")
+
+	parsed, err := parseMessageContent(raw)
+	if err != nil {
+		t.Fatalf("parseMessageContent() error = %v", err)
+	}
+	if parsed.body != "hello" {
+		t.Fatalf("body = %q, want hello", parsed.body)
+	}
+	if len(parsed.attachments) != 1 {
+		t.Fatalf("attachments = %#v, want one", parsed.attachments)
+	}
+	attachment := parsed.attachments[0]
+	if attachment.PartID != "2" || attachment.Filename != "report.pdf" || attachment.ContentType != "application/pdf" || string(attachment.Data) != "pdf" {
+		t.Fatalf("attachment = %#v", attachment)
+	}
+}
+
+func TestParseMessageContentKeepsOriginalFilenameForDisplay(t *testing.T) {
+	raw := []byte("Content-Type: application/octet-stream; name=\"../../invoice.exe\"\r\n" +
+		"Content-Disposition: attachment; filename=\"../../invoice.exe\"\r\n\r\ndata")
+	parsed, err := parseMessageContent(raw)
+	if err != nil {
+		t.Fatalf("parseMessageContent() error = %v", err)
+	}
+	if got := parsed.attachments[0].Filename; got != "../../invoice.exe" {
+		t.Fatalf("filename = %q, want original filename", got)
+	}
+}
+
+func TestParseMessageContentDoesNotRenderMalformedAttachmentAsBody(t *testing.T) {
+	raw := []byte("Content-Type: text/html\r\n" +
+		"Content-Disposition: attachment; filename=\"unterminated\r\n\r\n<script>bad()</script>")
+	parsed, err := parseMessageContent(raw)
+	if err != nil {
+		t.Fatalf("parseMessageContent() error = %v", err)
+	}
+	if parsed.body != "(no text body)" || len(parsed.attachments) != 1 {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
 func TestHasFlagIsCaseInsensitive(t *testing.T) {
 	if !hasFlag([]string{"\\Seen", "$forwarded"}, "$Forwarded") {
 		t.Fatal("hasFlag() = false, want true")
