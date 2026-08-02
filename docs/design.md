@@ -215,3 +215,20 @@ When implementing a UI change, including the mail UI work in issue #13:
 - Keep application CSS in `static/css/app.css` and avoid introducing a frontend
   framework or build step without discussion.
 - Update this document when a new reusable pattern is introduced.
+
+## Reference Mockups
+
+Use [`mockup/mail.html`](mockup/mail.html) as the visual reference for the mail
+screen.
+
+The mockup defines the intended layout, spacing, visual hierarchy, colors, and
+responsive direction. It is not a functional specification.
+
+When implementing it:
+
+- Follow the principles in this document when the mockup is ambiguous.
+- Connect only actions supported by the application.
+- Do not add non-functional controls solely because they appear in a mockup.
+- Move styles into `static/css/app.css`; do not copy inline styles into templates.
+- Prefer actual application data and semantic HTML over reproducing placeholder
+  content exactly.
