@@ -29,6 +29,8 @@ type composePageView struct {
 	SubmitLabel    string
 	AttachmentHelp string
 	Original       *composeOriginalView
+	Errors         map[string]string
+	FormError      string
 }
 
 type composeOriginalView struct {

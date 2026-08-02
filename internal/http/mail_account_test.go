@@ -42,6 +42,72 @@ func TestParseSMTPFormRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestProtocolFormErrorsIdentifyInvalidFields(t *testing.T) {
+	req := httptest.NewRequest("POST", "/settings", strings.NewReader("imap_host=&imap_port=70000&imap_security=invalid&imap_username="))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	errors := imapFormErrors(req, true)
+	for _, field := range []string{"host", "port", "security", "username", "password"} {
+		if errors[field] == "" {
+			t.Errorf("missing IMAP error for %s", field)
+		}
+	}
+
+	req = httptest.NewRequest("POST", "/settings", strings.NewReader("smtp_host=&smtp_port=x&smtp_security=invalid&smtp_username="))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	errors = smtpFormErrors(req, true)
+	for _, field := range []string{"host", "port", "security", "username", "password"} {
+		if errors[field] == "" {
+			t.Errorf("missing SMTP error for %s", field)
+		}
+	}
+}
+
+func TestComposeFormErrorsIdentifyRequiredFields(t *testing.T) {
+	errors := composeFormErrors(composeMessageForm{})
+	for _, field := range []string{"to", "subject", "body"} {
+		if errors[field] == "" {
+			t.Errorf("missing compose error for %s", field)
+		}
+	}
+}
+
+func TestParseComposeMessageFormPreservesSafeValuesOnValidationError(t *testing.T) {
+	req := httptest.NewRequest("POST", "/mail-accounts/account-1/send", strings.NewReader("to=to%40example.test&subject=&body=Draft+body"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	form, ok := parseComposeMessageForm(req)
+	if ok {
+		t.Fatal("parseComposeMessageForm() ok = true, want false")
+	}
+	if form.To != "to@example.test" || form.Body != "Draft body" {
+		t.Fatalf("safe values were not preserved: %+v", form)
+	}
+
+	errors := composeFormErrors(composeMessageForm{To: " ", Subject: " ", Body: "\n"})
+	for _, field := range []string{"to", "subject", "body"} {
+		if errors[field] == "" {
+			t.Errorf("whitespace-only %s was accepted", field)
+		}
+	}
+}
+
+func TestValidEmailAddressRejectsDisplayNames(t *testing.T) {
+	if !validEmailAddress("user@example.test") {
+		t.Error("valid address was rejected")
+	}
+	if validEmailAddress("User <user@example.test>") || validEmailAddress("not-an-address") {
+		t.Error("invalid account address was accepted")
+	}
+}
+
 func TestParseSMTPForm(t *testing.T) {
 	req := httptest.NewRequest("POST", "/mail-accounts/account-1/smtp/save", strings.NewReader("smtp_host=localhost&smtp_port=1025&smtp_security=plain&smtp_username=dev%40example.test&smtp_password=dev"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

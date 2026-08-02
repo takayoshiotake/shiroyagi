@@ -30,9 +30,7 @@
               <a class="button" href="{{.IMAPURL}}">IMAP</a>
               <a class="button" href="{{.SMTPURL}}">SMTP</a>
             </nav>
-            <form class="account-delete" method="post" action="{{.DeleteURL}}">
-              <button class="button button-danger" type="submit">Delete account</button>
-            </form>
+            <div class="account-delete"><a class="button button-danger" href="{{.DeleteURL}}">Delete account</a></div>
           </article>
         {{end}}
       </div>
@@ -58,9 +56,11 @@
     <a class="settings-back" href="/settings/mail-accounts">← Mail accounts</a>
     <header class="settings-page-head"><div><p class="eyebrow">Settings</p><h1 id="settings-title">Add mail account</h1></div></header>
     <form class="settings-form" method="post" action="/mail-accounts/create">
+      {{if .FormError}}<p class="form-error form-error-summary" role="alert">{{.FormError}}</p>{{end}}
       <div class="form-field">
         <label for="email-address">Email address</label>
-        <input id="email-address" type="email" name="email_address" autocomplete="email" required>
+        <input id="email-address" type="email" name="email_address" value="{{.NewEmail}}" autocomplete="email" required{{if index .Errors "email_address"}} aria-invalid="true" aria-describedby="email-address-error"{{end}}>
+        {{with index .Errors "email_address"}}<p class="form-error" id="email-address-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Save account</button></div>
     </form>
@@ -81,19 +81,22 @@
       <div><p class="eyebrow">{{.Protocol.Email}}</p><h1 id="settings-title">{{.Protocol.Name}} settings</h1></div>
     </header>
     <form class="settings-form" method="post" action="{{.Protocol.FormAction}}">
+      {{if .Protocol.FormError}}<p class="form-error form-error-summary" role="alert">{{.Protocol.FormError}}</p>{{end}}
       <div class="form-grid">
         <div class="form-field form-field-wide">
           <label for="protocol-host">Host</label>
-          <input id="protocol-host" name="{{if eq .Protocol.Name "IMAP"}}imap_host{{else}}smtp_host{{end}}" value="{{.Protocol.Host}}" required>
+          <input id="protocol-host" name="{{if eq .Protocol.Name "IMAP"}}imap_host{{else}}smtp_host{{end}}" value="{{.Protocol.Host}}" required{{if index .Protocol.Errors "host"}} aria-invalid="true" aria-describedby="protocol-host-error"{{end}}>
+          {{with index .Protocol.Errors "host"}}<p class="form-error" id="protocol-host-error" role="alert">{{.}}</p>{{end}}
         </div>
         <div class="form-field">
           <label for="protocol-port">Port</label>
-          <input id="protocol-port" type="number" min="1" max="65535" name="{{if eq .Protocol.Name "IMAP"}}imap_port{{else}}smtp_port{{end}}" value="{{.Protocol.Port}}" required>
+          <input id="protocol-port" inputmode="numeric" name="{{if eq .Protocol.Name "IMAP"}}imap_port{{else}}smtp_port{{end}}" value="{{.Protocol.Port}}" required{{if index .Protocol.Errors "port"}} aria-invalid="true" aria-describedby="protocol-port-error"{{end}}>
+          {{with index .Protocol.Errors "port"}}<p class="form-error" id="protocol-port-error" role="alert">{{.}}</p>{{end}}
         </div>
       </div>
       <div class="form-field">
         <label for="protocol-security">Security</label>
-        <select id="protocol-security" name="{{if eq .Protocol.Name "IMAP"}}imap_security{{else}}smtp_security{{end}}">
+        <select id="protocol-security" name="{{if eq .Protocol.Name "IMAP"}}imap_security{{else}}smtp_security{{end}}"{{if index .Protocol.Errors "security"}} aria-invalid="true" aria-describedby="protocol-security-error"{{end}}>
           {{if eq .Protocol.Name "IMAP"}}
             <option value="imaps"{{if or (eq .Protocol.Security "imaps") (eq .Protocol.Security "")}} selected{{end}}>IMAPS</option>
             <option value="imap"{{if eq .Protocol.Security "imap"}} selected{{end}}>IMAP</option>
@@ -103,24 +106,48 @@
             <option value="plain"{{if or (eq .Protocol.Security "plain") (eq .Protocol.Security "")}} selected{{end}}>Plain</option>
           {{end}}
         </select>
+        {{with index .Protocol.Errors "security"}}<p class="form-error" id="protocol-security-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-field">
         <label for="protocol-username">Username</label>
-        <input id="protocol-username" name="{{if eq .Protocol.Name "IMAP"}}imap_username{{else}}smtp_username{{end}}" value="{{.Protocol.Username}}" autocomplete="username" required>
+        <input id="protocol-username" name="{{if eq .Protocol.Name "IMAP"}}imap_username{{else}}smtp_username{{end}}" value="{{.Protocol.Username}}" autocomplete="username" required{{if index .Protocol.Errors "username"}} aria-invalid="true" aria-describedby="protocol-username-error"{{end}}>
+        {{with index .Protocol.Errors "username"}}<p class="form-error" id="protocol-username-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-field">
         <label for="protocol-password">{{if .Protocol.HasConfig}}New password (optional){{else}}Password{{end}}</label>
-        <input id="protocol-password" type="password" name="{{if eq .Protocol.Name "IMAP"}}imap_password{{else}}smtp_password{{end}}" autocomplete="new-password"{{if not .Protocol.HasConfig}} required{{end}}>
+        <input id="protocol-password" type="password" name="{{if eq .Protocol.Name "IMAP"}}imap_password{{else}}smtp_password{{end}}" autocomplete="new-password"{{if not .Protocol.HasConfig}} required{{end}}{{if index .Protocol.Errors "password"}} aria-invalid="true" aria-describedby="protocol-password-error"{{end}}>
         {{if .Protocol.HasConfig}}<p class="form-help">Leave blank to keep the current password.</p>{{end}}
+        {{with index .Protocol.Errors "password"}}<p class="form-error" id="protocol-password-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Save {{.Protocol.Name}}</button></div>
     </form>
     {{if .Protocol.HasConfig}}
       <section class="danger-zone" aria-labelledby="remove-protocol-title">
         <div><h2 id="remove-protocol-title">Remove {{.Protocol.Name}}</h2><p>Mail account identity and other protocol settings will be kept.</p></div>
-        <form method="post" action="{{.Protocol.RemoveAction}}"><button class="button button-danger" type="submit">Remove {{.Protocol.Name}}</button></form>
+        <a class="button button-danger" href="{{.Protocol.RemoveAction}}">Remove {{.Protocol.Name}}</a>
       </section>
     {{end}}
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "account-removal-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "settings-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="settings-standalone settings-standalone-narrow" aria-labelledby="confirm-title">
+    <section class="confirm-card">
+      <p class="eyebrow">Confirmation</p>
+      <h1 id="confirm-title">{{.Confirmation.Heading}}</h1>
+      <p>{{.Confirmation.Description}}</p>
+      <div class="confirm-actions">
+        <a class="button" href="{{.Confirmation.CancelURL}}">Cancel</a>
+        <form method="post" action="{{.Confirmation.Action}}"><button class="button button-danger" type="submit">{{.Confirmation.ConfirmLabel}}</button></form>
+      </div>
+    </section>
   </main>
 </body>
 </html>

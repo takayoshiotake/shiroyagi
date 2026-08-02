@@ -230,7 +230,7 @@ func TestAccountSettingsUseSharedVisualPatternsWithoutMailNavigation(t *testing.
 	for _, want := range []string{
 		`class="minimal-topbar"`, `>Shiroyagi</span>`, `class="user-menu"`, `href="/auth/logout"`, `>Sign out</a>`,
 		`class="settings-standalone"`, `class="settings-page-head"`,
-		`href="/mail-accounts/account-1/mailboxes/INBOX"`, `action="/delete"`,
+		`href="/mail-accounts/account-1/mailboxes/INBOX"`, `href="/delete"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings page does not contain %q", want)
@@ -238,6 +238,83 @@ func TestAccountSettingsUseSharedVisualPatternsWithoutMailNavigation(t *testing.
 	}
 	if strings.Contains(body, `class="topbar"`) || strings.Contains(body, `class="mailboxes`) || strings.Contains(body, `class="account-switch"`) {
 		t.Error("settings page contains mail workspace navigation")
+	}
+}
+
+func TestRemovalConfirmationRequiresExplicitPost(t *testing.T) {
+	view := accountSettingsPageView{
+		Title: "Confirm removal", User: mailUserView{Initial: "U"},
+		Confirmation: &removalConfirmationView{
+			Heading: "Delete mail account?", Description: "user@example.test will be deleted.", Action: "/delete", CancelURL: "/settings", ConfirmLabel: "Delete account",
+		},
+	}
+	recorder := httptest.NewRecorder()
+	if err := renderUI(recorder, http.StatusOK, "account-removal-page", view); err != nil {
+		t.Fatal(err)
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{`method="post" action="/delete"`, `href="/settings"`, "Delete mail account?", "Delete account"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("confirmation page does not contain %q", want)
+		}
+	}
+}
+
+func TestSettingsValidationPreservesSafeValuesAndNotPasswords(t *testing.T) {
+	view := accountSettingsPageView{
+		Title: "IMAP settings", User: mailUserView{Initial: "U"},
+		Protocol: &protocolSettingsView{
+			Name: "IMAP", Email: "user@example.test", FormAction: "/imap/save", Host: "imap.example.test", Port: "invalid", Username: "user@example.test",
+			Errors: map[string]string{"port": "Enter a valid port.", "password": "Enter the password."}, FormError: "Check the highlighted fields.",
+		},
+	}
+	recorder := httptest.NewRecorder()
+	if err := renderUI(recorder, http.StatusUnprocessableEntity, "account-protocol-page", view); err != nil {
+		t.Fatal(err)
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{`value="imap.example.test"`, `value="invalid"`, `value="user@example.test"`, `aria-invalid="true"`, "Enter a valid port."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("validation page does not contain %q", want)
+		}
+	}
+	if strings.Contains(body, `name="imap_password" value=`) {
+		t.Error("validation page redisplays a password")
+	}
+}
+
+func TestNewAccountValidationPreservesEmail(t *testing.T) {
+	view := accountSettingsPageView{
+		Title: "Add mail account", User: mailUserView{Initial: "U"}, NewEmail: "invalid@example",
+		Errors: map[string]string{"email_address": "Enter a valid email address."}, FormError: "Check the highlighted field.",
+	}
+	recorder := httptest.NewRecorder()
+	if err := renderUI(recorder, http.StatusUnprocessableEntity, "account-new-page", view); err != nil {
+		t.Fatal(err)
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{`value="invalid@example"`, `aria-describedby="email-address-error"`, "Enter a valid email address."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("new account validation page does not contain %q", want)
+		}
+	}
+}
+
+func TestComposeValidationPreservesSafeValues(t *testing.T) {
+	view := composePageView{
+		Title: "Compose message", Heading: "Compose message", From: "from@example.test", FormAction: "/send", Mode: composeModeNew,
+		To: "to@example.test", Subject: "", Body: "Draft body", SubmitLabel: "Send",
+		Errors: map[string]string{"subject": "Enter a subject."}, FormError: "Check the highlighted fields.",
+	}
+	recorder := httptest.NewRecorder()
+	if err := renderUI(recorder, http.StatusUnprocessableEntity, "compose-page", view); err != nil {
+		t.Fatal(err)
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{`value="to@example.test"`, "Draft body", `aria-describedby="compose-subject-error"`, "Enter a subject."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("compose validation page does not contain %q", want)
+		}
 	}
 }
 

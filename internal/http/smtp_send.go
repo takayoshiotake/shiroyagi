@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/takayoshiotake/shiroyagi/internal/auth"
 	"github.com/takayoshiotake/shiroyagi/internal/crypto"
@@ -71,16 +72,6 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	form, ok := parseComposeMessageForm(r)
-	if !ok {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	uploadedAttachments, err := readUploadedAttachments(r)
-	if err != nil {
-		http.Error(w, "invalid attachment: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	session, _ := sessionFromContext(r.Context())
 	account, found, err := s.accounts.Get(r.Context(), session.Subject, id)
 	if err != nil {
@@ -94,6 +85,16 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	if !account.HasSMTP {
 		renderSMTPError(w, account, "SMTP account is not configured.")
+		return
+	}
+	errors := composeFormErrors(form)
+	if !ok || len(errors) > 0 {
+		s.renderComposeFormError(w, session, account, form, errors, "Check the highlighted fields.", http.StatusUnprocessableEntity)
+		return
+	}
+	uploadedAttachments, err := readUploadedAttachments(r)
+	if err != nil {
+		s.renderComposeFormError(w, session, account, form, map[string]string{"attachments": err.Error()}, "The attachments could not be added.", http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -253,19 +254,65 @@ func parseComposeMessageForm(r *http.Request) (composeMessageForm, bool) {
 		Body:    r.FormValue("body"),
 	}
 	if !form.Mode.valid() {
-		return composeMessageForm{}, false
+		return form, false
 	}
 	if form.requiresOriginal() {
 		uid, err := strconv.ParseUint(r.FormValue("uid"), 10, 32)
 		if err != nil || uid == 0 || form.Mailbox == "" {
-			return composeMessageForm{}, false
+			return form, false
 		}
 		form.UID = uint32(uid)
 	}
 	if form.To == "" || form.Subject == "" || form.Body == "" {
-		return composeMessageForm{}, false
+		return form, false
 	}
 	return form, true
+}
+
+func composeFormErrors(form composeMessageForm) map[string]string {
+	errors := make(map[string]string)
+	if strings.TrimSpace(form.To) == "" {
+		errors["to"] = "Enter at least one recipient."
+	}
+	if strings.TrimSpace(form.Subject) == "" {
+		errors["subject"] = "Enter a subject."
+	}
+	if strings.TrimSpace(form.Body) == "" {
+		errors["body"] = "Enter a message."
+	}
+	return errors
+}
+
+func (s *Server) renderComposeFormError(w http.ResponseWriter, session auth.UserSession, account mailaccount.Detail, form composeMessageForm, errors map[string]string, message string, status int) {
+	heading := "Compose message"
+	submitLabel := "Send"
+	backURL := mailboxURL(account.ID, defaultMailbox)
+	attachmentHelp := "Up to 10 files and 25 MiB total."
+	if form.Mode == composeModeReply || form.Mode == composeModeReplyAll {
+		if form.Mode == composeModeReplyAll {
+			heading, submitLabel = "Reply all", "Send reply all"
+		} else {
+			heading, submitLabel = "Reply message", "Send reply"
+		}
+		attachmentHelp = "Original attachments are not included. You can add up to 10 files and 25 MiB total."
+	} else if form.Mode == composeModeForward {
+		heading, submitLabel = "Forward message", "Send forward"
+		attachmentHelp = "Original attachments will be included when available. The 25 MiB total limit includes them."
+	}
+	if form.requiresOriginal() && form.Mailbox != "" && form.UID != 0 {
+		backURL = messageURL(account.ID, form.Mailbox, form.UID)
+	}
+	if !form.Mode.valid() {
+		form.Mode = composeModeNew
+	}
+	view := newComposePageView(session, account, heading, submitLabel, backURL, form)
+	view.AttachmentHelp = attachmentHelp
+	view.Errors = errors
+	view.FormError = message
+	if err := renderUI(w, status, "compose-page", view); err != nil {
+		log.Printf("render compose validation error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }
 
 func (mode composeMode) valid() bool {

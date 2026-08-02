@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
+	"github.com/takayoshiotake/shiroyagi/internal/auth"
 	"github.com/takayoshiotake/shiroyagi/internal/crypto"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
@@ -32,14 +34,7 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := s.buildAccountSettingsPage(r.Context(), session, account.ID)
-	if err != nil {
-		log.Printf("prepare imap account page: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	view.Title = "IMAP settings"
-	view.Protocol = &protocolSettingsView{
+	protocol := &protocolSettingsView{
 		Name:         "IMAP",
 		Email:        account.EmailAddress,
 		FormAction:   "/mail-accounts/" + account.ID + "/imap/save",
@@ -50,18 +45,12 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
 		Security:     account.IMAPSecurity,
 		Username:     account.IMAPUsername,
 	}
-	renderAccountSettings(w, "account-protocol-page", view)
+	s.renderIMAPSettings(w, r, session, account, protocol, http.StatusOK)
 }
 
 func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	form, ok := parseIMAPForm(r)
-	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -77,8 +66,23 @@ func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !account.HasIMAP && form.IMAPPassword == "" {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	form, ok := parseIMAPForm(r)
+	errors := imapFormErrors(r, !account.HasIMAP)
+	if !ok || len(errors) > 0 {
+		protocol := &protocolSettingsView{
+			Name:         "IMAP",
+			Email:        account.EmailAddress,
+			FormAction:   "/mail-accounts/" + account.ID + "/imap/save",
+			RemoveAction: "/mail-accounts/" + account.ID + "/imap/delete",
+			HasConfig:    account.HasIMAP,
+			Host:         strings.TrimSpace(r.FormValue("imap_host")),
+			Port:         strings.TrimSpace(r.FormValue("imap_port")),
+			Security:     r.FormValue("imap_security"),
+			Username:     strings.TrimSpace(r.FormValue("imap_username")),
+			Errors:       errors,
+			FormError:    "Check the highlighted fields.",
+		}
+		s.renderIMAPSettings(w, r, session, account, protocol, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -160,21 +164,55 @@ func (s *Server) handleDeleteIMAPAccount(w http.ResponseWriter, r *http.Request)
 
 func parseIMAPForm(r *http.Request) (imapAccountForm, bool) {
 	form := imapAccountForm{
-		IMAPHost:     r.FormValue("imap_host"),
+		IMAPHost:     strings.TrimSpace(r.FormValue("imap_host")),
 		IMAPSecurity: r.FormValue("imap_security"),
-		IMAPUsername: r.FormValue("imap_username"),
+		IMAPUsername: strings.TrimSpace(r.FormValue("imap_username")),
 		IMAPPassword: r.FormValue("imap_password"),
 	}
 	imapPort, err := strconv.Atoi(r.FormValue("imap_port"))
 	if err != nil {
-		return imapAccountForm{}, false
+		return form, false
 	}
 	form.IMAPPort = imapPort
 	if form.IMAPSecurity != "imaps" && form.IMAPSecurity != "imap" {
-		return imapAccountForm{}, false
+		return form, false
 	}
 	if form.IMAPHost == "" || form.IMAPPort <= 0 || form.IMAPPort > 65535 || form.IMAPUsername == "" {
-		return imapAccountForm{}, false
+		return form, false
 	}
 	return form, true
+}
+
+func imapFormErrors(r *http.Request, requirePassword bool) map[string]string {
+	errors := make(map[string]string)
+	if strings.TrimSpace(r.FormValue("imap_host")) == "" {
+		errors["host"] = "Enter the IMAP host."
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(r.FormValue("imap_port")))
+	if err != nil || port <= 0 || port > 65535 {
+		errors["port"] = "Enter a port from 1 to 65535."
+	}
+	security := r.FormValue("imap_security")
+	if security != "imaps" && security != "imap" {
+		errors["security"] = "Select a supported security mode."
+	}
+	if strings.TrimSpace(r.FormValue("imap_username")) == "" {
+		errors["username"] = "Enter the IMAP username."
+	}
+	if requirePassword && r.FormValue("imap_password") == "" {
+		errors["password"] = "Enter the IMAP password."
+	}
+	return errors
+}
+
+func (s *Server) renderIMAPSettings(w http.ResponseWriter, r *http.Request, session auth.UserSession, account mailaccount.Detail, protocol *protocolSettingsView, status int) {
+	view, err := s.buildAccountSettingsPage(r.Context(), session, account.ID)
+	if err != nil {
+		log.Printf("prepare imap account page: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	view.Title = "IMAP settings"
+	view.Protocol = protocol
+	renderAccountSettingsStatus(w, status, "account-protocol-page", view)
 }

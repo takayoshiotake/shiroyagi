@@ -763,6 +763,25 @@ a {
   font-size: 12px;
 }
 
+.form-error {
+  margin: var(--space-1) 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.form-error-summary {
+  padding: var(--space-3);
+  margin: 0;
+  background: var(--error-bg);
+  border: 1px solid var(--error-line);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.form-field [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -784,6 +803,31 @@ a {
 .danger-zone h2 {
   margin: 0;
   font-size: 15px;
+}
+
+.confirm-card {
+  padding: var(--space-6);
+  margin-top: var(--space-10);
+  background: var(--surface);
+  border: 1px solid var(--error-line);
+  border-radius: var(--radius-md);
+}
+
+.confirm-card h1 {
+  margin: 0 0 var(--space-3);
+  font-size: 24px;
+}
+
+.confirm-card > p:last-of-type {
+  margin: 0;
+  color: var(--soft);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-6);
 }
 
 .compose-standalone,

@@ -32,12 +32,14 @@
       </details>
     {{end}}
     <form class="compose-form" method="post" action="{{.FormAction}}" enctype="multipart/form-data">
+      {{if .FormError}}<p class="form-error form-error-summary" role="alert">{{.FormError}}</p>{{end}}
       <input type="hidden" name="mode" value="{{.Mode}}">
       {{if .Mailbox}}<input type="hidden" name="mailbox" value="{{.Mailbox}}">{{end}}
       {{if .UID}}<input type="hidden" name="uid" value="{{.UID}}">{{end}}
       <div class="form-field">
         <label for="compose-to">To</label>
-        <input id="compose-to" name="to" value="{{.To}}" autocomplete="email" required>
+        <input id="compose-to" name="to" value="{{.To}}" autocomplete="email" required{{if index .Errors "to"}} aria-invalid="true" aria-describedby="compose-to-error"{{end}}>
+        {{with index .Errors "to"}}<p class="form-error" id="compose-to-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-field">
         <label for="compose-cc">Cc (optional)</label>
@@ -45,16 +47,19 @@
       </div>
       <div class="form-field">
         <label for="compose-subject">Subject</label>
-        <input id="compose-subject" name="subject" value="{{.Subject}}" required>
+        <input id="compose-subject" name="subject" value="{{.Subject}}" required{{if index .Errors "subject"}} aria-invalid="true" aria-describedby="compose-subject-error"{{end}}>
+        {{with index .Errors "subject"}}<p class="form-error" id="compose-subject-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-field">
         <label for="compose-body">Message</label>
-        <textarea id="compose-body" name="body" rows="16" required>{{.Body}}</textarea>
+        <textarea id="compose-body" name="body" rows="16" required{{if index .Errors "body"}} aria-invalid="true" aria-describedby="compose-body-error"{{end}}>{{.Body}}</textarea>
+        {{with index .Errors "body"}}<p class="form-error" id="compose-body-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-field">
         <label for="compose-attachments">Attachments (optional)</label>
         <input id="compose-attachments" type="file" name="attachments" multiple>
         <p class="form-help">{{.AttachmentHelp}}</p>
+        {{with index .Errors "attachments"}}<p class="form-error" role="alert">{{.}}</p>{{end}}
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">{{.SubmitLabel}}</button></div>
     </form>
