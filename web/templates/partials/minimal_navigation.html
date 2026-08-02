@@ -1,0 +1,18 @@
+{{define "minimal-topbar"}}
+<header class="minimal-topbar">
+  <a class="brand" href="/mail-accounts" aria-label="Shiroyagi mail">
+    <span class="brand-mark" aria-hidden="true">S</span>
+    <span>Shiroyagi</span>
+  </a>
+  {{if .User.Initial}}
+    <div class="minimal-topbar-account">
+      <details class="user-menu">
+        <summary class="avatar" aria-label="Open user menu">{{.User.Initial}}</summary>
+        <nav class="user-menu-list" aria-label="User menu">
+          <a href="/auth/logout">Sign out</a>
+        </nav>
+      </details>
+    </div>
+  {{end}}
+</header>
+{{end}}

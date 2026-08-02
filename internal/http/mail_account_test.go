@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
-	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
 
 func TestMailAccountAAD(t *testing.T) {
@@ -28,27 +27,6 @@ func TestMailAccountAAD(t *testing.T) {
 	wantSMTPFieldAAD := "user-1:account-1:smtp_password"
 	if gotSMTPFieldAAD != wantSMTPFieldAAD {
 		t.Fatalf("fieldAAD() = %q, want %q", gotSMTPFieldAAD, wantSMTPFieldAAD)
-	}
-}
-
-func TestSelected(t *testing.T) {
-	if selected(true) != " selected" {
-		t.Fatalf("selected(true) = %q, want selected attribute", selected(true))
-	}
-	if selected(false) != "" {
-		t.Fatalf("selected(false) = %q, want empty string", selected(false))
-	}
-}
-
-func TestSMTPSecuritySelectedDefaultsToPlain(t *testing.T) {
-	if smtpSecuritySelected("", "plain") != " selected" {
-		t.Fatal("smtpSecuritySelected() did not default empty security to plain")
-	}
-	if smtpSecuritySelected("", "starttls") != "" {
-		t.Fatal("smtpSecuritySelected() selected starttls for empty security")
-	}
-	if smtpSecuritySelected("starttls", "starttls") != " selected" {
-		t.Fatal("smtpSecuritySelected() did not keep saved starttls selection")
 	}
 }
 
@@ -255,25 +233,6 @@ func TestWriteAttachmentDownloadForcesOpaqueDownload(t *testing.T) {
 	}
 	if recorder.Body.String() != "data" {
 		t.Fatalf("body = %q", recorder.Body.String())
-	}
-}
-
-func TestRenderAttachmentListShowsEscapedOriginalFilename(t *testing.T) {
-	recorder := httptest.NewRecorder()
-	renderAttachmentList(recorder, mailaccount.Detail{ID: "account-1"}, "INBOX", mailimap.Message{
-		UID: 42,
-		Attachments: []mailimap.Attachment{{
-			PartID: "2", Filename: "../<original>.txt", ContentType: "text/plain", Size: 4,
-		}},
-	})
-	body := recorder.Body.String()
-	for _, want := range []string{"../&lt;original&gt;.txt", "/messages/42/attachments/2", "text/plain", "4 bytes"} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("attachment list missing %q in %s", want, body)
-		}
-	}
-	if strings.Contains(body, "../<original>.txt") {
-		t.Fatalf("attachment list contains unescaped filename: %s", body)
 	}
 }
 

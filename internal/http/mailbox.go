@@ -3,10 +3,8 @@ package httpserver
 import (
 	"errors"
 	"fmt"
-	"html"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -23,6 +21,7 @@ const (
 )
 
 func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
+	setHTMXVary(w)
 	id := r.PathValue("id")
 	mailbox := r.PathValue("mailbox")
 	if mailbox == "" {
@@ -46,70 +45,34 @@ func (s *Server) handleMailbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imapAccount, err := s.imapReaderAccount(session.Subject, account)
-	if err != nil {
-		log.Printf("prepare imap account %s: %v", account.ID, err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+	previousUID := parsePreviousUID(r)
+	selectedUID := uint32(0)
+	if isHTMX(r) && r.Header.Get("HX-Target") == "message-list-panel" {
+		selectedUID = previousUID
 	}
-
-	messages, err := mailimap.ListMessages(r.Context(), imapAccount, mailbox, mailboxMessageLimit)
+	view, err := s.buildMailPage(r.Context(), session, account, mailbox, selectedUID, false)
 	if err != nil {
 		log.Printf("list mailbox account=%s mailbox=%q: %v", account.ID, mailbox, err)
+		if isHTMX(r) {
+			renderMailPartialError(w, "message-list-error", "Please try again. If the problem continues, check the IMAP account settings.")
+			return
+		}
 		renderIMAPError(w, account, "Could not load mailbox: "+err.Error())
 		return
 	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>%s - Shiroyagi</title></head>
-<body>
-  <h1>%s</h1>
-  <p><strong>%s</strong></p>`,
-		html.EscapeString(mailbox),
-		html.EscapeString(mailbox),
-		html.EscapeString(account.EmailAddress),
-	)
-
-	if len(messages) == 0 {
-		_, _ = fmt.Fprint(w, `
-  <p>No messages.</p>`)
-	} else {
-		_, _ = fmt.Fprint(w, `
-  <table>
-    <thead>
-      <tr><th>Status</th><th>Date</th><th>From</th><th>Subject</th><th>Size</th></tr>
-    </thead>
-    <tbody>`)
-		for _, message := range messages {
-			_, _ = fmt.Fprintf(w, `
-      <tr>
-        <td>%s</td>
-        <td>%s</td>
-        <td>%s</td>
-        <td><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">%s</a></td>
-        <td>%d</td>
-      </tr>`,
-				html.EscapeString(messageStatus(message)),
-				html.EscapeString(formatIMAPTime(message.Date)),
-				html.EscapeString(message.From),
-				html.EscapeString(account.ID),
-				url.PathEscape(mailbox),
-				message.UID,
-				html.EscapeString(subjectOrUntitled(message.Subject)),
-				message.Size,
-			)
+	if isHTMX(r) {
+		switch r.Header.Get("HX-Target") {
+		case "message-list-panel":
+			renderMailTemplate(w, "message-list-panel", view)
+		case "message-detail":
+			view.selectOOBRows(previousUID)
+			renderMailTemplate(w, "message-empty-response", view)
+		default:
+			renderMailTemplate(w, "mail-page", view)
 		}
-		_, _ = fmt.Fprint(w, `
-    </tbody>
-  </table>`)
+		return
 	}
-
-	_, _ = fmt.Fprint(w, `
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`)
+	renderMailTemplate(w, "mail-page", view)
 }
 
 func messageStatus(message mailimap.MessageSummary) string {
@@ -145,6 +108,7 @@ func messageHeaderValue(value string) string {
 }
 
 func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
+	setHTMXVary(w)
 	id := r.PathValue("id")
 	mailbox := r.PathValue("mailbox")
 	if mailbox == "" {
@@ -174,76 +138,58 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imapAccount, err := s.imapReaderAccount(session.Subject, account)
-	if err != nil {
-		log.Printf("prepare imap account %s: %v", account.ID, err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	message, err := mailimap.GetMessage(r.Context(), imapAccount, mailbox, uint32(uid))
+	view, err := s.buildMailPage(r.Context(), session, account, mailbox, uint32(uid), true)
 	if err != nil {
 		if errors.Is(err, mailimap.ErrMessageNotFound) {
 			http.NotFound(w, r)
 			return
 		}
 		log.Printf("get message account=%s mailbox=%q uid=%d: %v", account.ID, mailbox, uid, err)
+		if isHTMX(r) {
+			renderMailPartialError(w, "message-panel-error", "Please try again. The current message content has been left unchanged when possible.")
+			return
+		}
 		renderIMAPError(w, account, "Could not load message: "+err.Error())
 		return
 	}
+	if isHTMX(r) && r.Header.Get("HX-Target") == "message-detail" {
+		view.selectOOBRows(parsePreviousUID(r))
+		renderMailTemplate(w, "message-detail-response", view)
+		return
+	}
+	renderMailTemplate(w, "mail-page", view)
+}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>%s - Shiroyagi</title></head>
-<body>
-  <p><a href="/mail-accounts/%s/mailboxes/%s">Back to %s</a></p>
-  <h1>%s</h1>
-  <dl>
-    <dt>Status</dt><dd>%s</dd>
-    <dt>From</dt><dd>%s</dd>
-    <dt>To</dt><dd>%s</dd>
-    <dt>Cc</dt><dd>%s</dd>
-    <dt>Reply-To</dt><dd>%s</dd>
-    <dt>Date</dt><dd>%s</dd>
-    <dt>Message-ID</dt><dd>%s</dd>
-    <dt>In-Reply-To</dt><dd>%s</dd>
-    <dt>References</dt><dd>%s</dd>
-  </dl>
-  <p>
-    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply">Reply</a>
-    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/reply-all">Reply all</a>
-    <a href="/mail-accounts/%s/mailboxes/%s/messages/%d/forward">Forward</a>
-  </p>`,
-		html.EscapeString(subjectOrUntitled(message.Subject)),
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		html.EscapeString(mailbox),
-		html.EscapeString(subjectOrUntitled(message.Subject)),
-		html.EscapeString(messageDetailStatus(message)),
-		html.EscapeString(message.From),
-		html.EscapeString(messageHeaderValue(message.To)),
-		html.EscapeString(messageHeaderValue(message.Cc)),
-		html.EscapeString(messageHeaderValue(message.ReplyTo)),
-		html.EscapeString(formatIMAPTime(message.Date)),
-		html.EscapeString(messageHeaderValue(message.MessageID)),
-		html.EscapeString(messageHeaderValue(message.InReplyTo)),
-		html.EscapeString(messageHeaderValue(message.References)),
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		message.UID,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		message.UID,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		message.UID,
-	)
-	renderAttachmentList(w, account, mailbox, message)
-	_, _ = fmt.Fprintf(w, `
-  <pre>%s</pre>
-</body>
-</html>`, html.EscapeString(message.Body))
+func isHTMX(r *http.Request) bool {
+	return isHTMXRequest(r.Header.Get("HX-Request"), r.Header.Get("HX-History-Restore-Request"))
+}
+
+func setHTMXVary(w http.ResponseWriter) {
+	w.Header().Add("Vary", "HX-Request")
+	w.Header().Add("Vary", "HX-Target")
+	w.Header().Add("Vary", "HX-History-Restore-Request")
+}
+
+func parsePreviousUID(r *http.Request) uint32 {
+	uid, err := strconv.ParseUint(r.URL.Query().Get("previous_uid"), 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(uid)
+}
+
+func renderMailTemplate(w http.ResponseWriter, name string, data mailPageView) {
+	if err := renderUI(w, http.StatusOK, name, data); err != nil {
+		log.Printf("render mail template %s: %v", name, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
+}
+
+func renderMailPartialError(w http.ResponseWriter, name string, message string) {
+	if err := renderUI(w, http.StatusBadGateway, name, mailPanelErrorView{Error: message}); err != nil {
+		log.Printf("render mail error template %s: %v", name, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) imapReaderAccount(userID string, account mailaccount.Detail) (mailimap.Account, error) {
@@ -282,23 +228,7 @@ func (s *Server) decryptIMAPPassword(userID string, account mailaccount.Detail) 
 }
 
 func renderIMAPError(w http.ResponseWriter, account mailaccount.Detail, message string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusBadGateway)
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>IMAP error - Shiroyagi</title></head>
-<body>
-  <h1>IMAP error</h1>
-  <p><strong>%s</strong></p>
-  <p>%s</p>
-  <p><a href="/mail-accounts/%s/imap/edit">Edit IMAP</a></p>
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(message),
-		html.EscapeString(account.ID),
-	)
+	renderProtocolError(w, "IMAP", account, message)
 }
 
 func subjectOrUntitled(subject string) string {

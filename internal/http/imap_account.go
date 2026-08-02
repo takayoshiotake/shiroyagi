@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"fmt"
-	"html"
 	"log"
 	"net/http"
 	"os"
@@ -34,65 +32,25 @@ func (s *Server) handleEditIMAPAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Edit IMAP account - Shiroyagi</title></head>
-<body>
-  <h1>Edit IMAP account</h1>
-
-  <p>
-    <strong>Email address</strong><br>
-    %s
-  </p>
-
-  <form method="post" action="/mail-accounts/%s/imap/save">
-    <p>
-      <label>IMAP Host<br>
-        <input name="imap_host" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>IMAP Port<br>
-        <input name="imap_port" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>IMAP protocol<br>
-        <select name="imap_security">
-          <option value="imaps"%s>IMAPS</option>
-          <option value="imap"%s>IMAP</option>
-        </select>
-      </label>
-    </p>
-    <p>
-      <label>IMAP username<br>
-        <input name="imap_username" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>New password<br>
-        <input type="password" name="imap_password">
-      </label>
-    </p>
-    <button type="submit">Save IMAP</button>
-  </form>
-  <form method="post" action="/mail-accounts/%s/imap/delete">
-    <button type="submit">Remove IMAP</button>
-  </form>
-
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(account.ID),
-		html.EscapeString(account.IMAPHost),
-		portValue(account.HasIMAP, account.IMAPPort),
-		selected(account.IMAPSecurity == "imaps"),
-		selected(account.IMAPSecurity == "imap"),
-		html.EscapeString(account.IMAPUsername),
-		html.EscapeString(account.ID),
-	)
+	view, err := s.buildAccountSettingsPage(r.Context(), session, account.ID)
+	if err != nil {
+		log.Printf("prepare imap account page: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	view.Title = "IMAP settings"
+	view.Protocol = &protocolSettingsView{
+		Name:         "IMAP",
+		Email:        account.EmailAddress,
+		FormAction:   "/mail-accounts/" + account.ID + "/imap/save",
+		RemoveAction: "/mail-accounts/" + account.ID + "/imap/delete",
+		HasConfig:    account.HasIMAP,
+		Host:         account.IMAPHost,
+		Port:         portValue(account.HasIMAP, account.IMAPPort),
+		Security:     account.IMAPSecurity,
+		Username:     account.IMAPUsername,
+	}
+	renderAccountSettings(w, "account-protocol-page", view)
 }
 
 func (s *Server) handleSaveIMAPAccount(w http.ResponseWriter, r *http.Request) {

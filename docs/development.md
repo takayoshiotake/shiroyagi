@@ -19,6 +19,17 @@ When creating or modifying UI, templates, or CSS, follow
 
 Reuse existing layouts and components before introducing new patterns.
 
+Templates and browser assets are embedded in the Go binary from `assets.go`.
+Only assets explicitly allowed by `internal/http/ui.go` are available under
+`/static/`; this route does not require authentication because it serves no
+user-specific content.
+
+htmx is pinned at version 2.0.10 in `static/js/htmx.min.js`. When updating it,
+download the minified distribution from the htmx release and update the bundled
+license notice at the same time. The current SHA-384 digest is
+`1f94ab71fca01e602e4c366984c1ea0492dcdc586cb0a8c6ef0fc2782a4545e49fc015834caa64ccf3fc73e70bb0af95`.
+Do not load it from a CDN at runtime.
+
 ## Branch Naming
 
 For work associated with a GitHub issue, include the issue number in the branch

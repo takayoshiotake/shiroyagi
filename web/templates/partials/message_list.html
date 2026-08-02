@@ -1,0 +1,60 @@
+{{define "message-list-panel"}}
+<section class="message-list-panel" id="message-list-panel" aria-labelledby="message-list-title">
+  <input type="hidden" id="selected-message" name="previous_uid" value="{{.SelectedUID}}">
+  <header class="message-list-head">
+    <div>
+      <p class="eyebrow">{{.Mailbox}}</p>
+      <h1 id="message-list-title">Messages</h1>
+    </div>
+    <div class="message-list-actions">
+      <a class="mobile-compose" href="{{.CurrentAccount.ComposeURL}}">New message</a>
+      <a class="refresh-link" href="{{.MailboxURL}}"
+         hx-get="{{.MailboxURL}}" hx-target="#message-list-panel"
+         hx-swap="outerHTML show:none" hx-include="#selected-message"
+         aria-label="Refresh messages">
+        <span aria-hidden="true">↻</span>
+      </a>
+    </div>
+  </header>
+  <div class="message-list-meta">{{len .Messages}} messages</div>
+  {{if .Messages}}
+    <ol class="messages">
+      {{range .Messages}}{{template "message-row" .}}{{end}}
+    </ol>
+  {{else}}
+    <div class="empty-panel">
+      <div><h2>No messages</h2><p>This mailbox is empty.</p></div>
+    </div>
+  {{end}}
+</section>
+{{end}}
+
+{{define "message-row"}}
+<li class="message-row" id="message-row-{{.UID}}">
+  <a class="message-link" href="{{.URL}}"{{if .Selected}} aria-current="true"{{end}}
+     hx-get="{{.URL}}" hx-target="#message-detail" hx-swap="outerHTML show:none"
+     hx-push-url="{{.URL}}" hx-include="#selected-message">
+    <div class="message-meta">
+      <span class="message-sender">{{.From}}</span>
+      <time datetime="{{.DateTime}}">{{.DisplayDate}}</time>
+    </div>
+    <p class="message-subject">{{.Subject}}</p>
+    {{if .Status}}<p class="message-status">{{.Status}}</p>{{end}}
+  </a>
+</li>
+{{end}}
+
+{{define "message-row-oob"}}
+<li class="message-row" id="message-row-{{.UID}}" hx-swap-oob="outerHTML">
+  <a class="message-link" href="{{.URL}}"{{if .Selected}} aria-current="true"{{end}}
+     hx-get="{{.URL}}" hx-target="#message-detail" hx-swap="outerHTML show:none"
+     hx-push-url="{{.URL}}" hx-include="#selected-message">
+    <div class="message-meta">
+      <span class="message-sender">{{.From}}</span>
+      <time datetime="{{.DateTime}}">{{.DisplayDate}}</time>
+    </div>
+    <p class="message-subject">{{.Subject}}</p>
+    {{if .Status}}<p class="message-status">{{.Status}}</p>{{end}}
+  </a>
+</li>
+{{end}}

@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"fmt"
-	"html"
 	"log"
 	"net/http"
 	"os"
@@ -34,67 +32,25 @@ func (s *Server) handleEditSMTPAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Edit SMTP account - Shiroyagi</title></head>
-<body>
-  <h1>Edit SMTP account</h1>
-
-  <p>
-    <strong>Email address</strong><br>
-    %s
-  </p>
-
-  <form method="post" action="/mail-accounts/%s/smtp/save">
-    <p>
-      <label>SMTP Host<br>
-        <input name="smtp_host" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>SMTP Port<br>
-        <input name="smtp_port" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>SMTP protocol<br>
-        <select name="smtp_security">
-          <option value="starttls"%s>STARTTLS</option>
-          <option value="smtps"%s>SMTPS</option>
-          <option value="plain"%s>Plain</option>
-        </select>
-      </label>
-    </p>
-    <p>
-      <label>SMTP username<br>
-        <input name="smtp_username" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>New SMTP password<br>
-        <input type="password" name="smtp_password">
-      </label>
-    </p>
-    <button type="submit">Save SMTP</button>
-  </form>
-  <form method="post" action="/mail-accounts/%s/smtp/delete">
-    <button type="submit">Remove SMTP</button>
-  </form>
-
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(account.ID),
-		html.EscapeString(account.SMTPHost),
-		portValue(account.HasSMTP, account.SMTPPort),
-		smtpSecuritySelected(account.SMTPSecurity, "starttls"),
-		smtpSecuritySelected(account.SMTPSecurity, "smtps"),
-		smtpSecuritySelected(account.SMTPSecurity, "plain"),
-		html.EscapeString(account.SMTPUsername),
-		html.EscapeString(account.ID),
-	)
+	view, err := s.buildAccountSettingsPage(r.Context(), session, account.ID)
+	if err != nil {
+		log.Printf("prepare smtp account page: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	view.Title = "SMTP settings"
+	view.Protocol = &protocolSettingsView{
+		Name:         "SMTP",
+		Email:        account.EmailAddress,
+		FormAction:   "/mail-accounts/" + account.ID + "/smtp/save",
+		RemoveAction: "/mail-accounts/" + account.ID + "/smtp/delete",
+		HasConfig:    account.HasSMTP,
+		Host:         account.SMTPHost,
+		Port:         portValue(account.HasSMTP, account.SMTPPort),
+		Security:     account.SMTPSecurity,
+		Username:     account.SMTPUsername,
+	}
+	renderAccountSettings(w, "account-protocol-page", view)
 }
 
 func (s *Server) handleSaveSMTPAccount(w http.ResponseWriter, r *http.Request) {

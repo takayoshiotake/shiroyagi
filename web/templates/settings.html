@@ -1,0 +1,127 @@
+{{define "settings-head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} - Shiroyagi</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{end}}
+
+{{define "account-settings-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "settings-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="settings-standalone" aria-labelledby="settings-title">
+    {{if .CurrentAccount.Email}}<a class="settings-back" href="{{.CurrentAccount.InboxURL}}">← Back to Inbox</a>{{end}}
+    <header class="settings-page-head">
+      <div><p class="eyebrow">Settings</p><h1 id="settings-title">Mail accounts</h1></div>
+      <a class="button button-primary" href="/mail-accounts/new">Add mail account</a>
+    </header>
+    {{if .Settings}}
+      <div class="account-settings-list">
+        {{range .Settings}}
+          <article class="account-settings-card">
+            <div class="account-settings-identity">
+              <h2>{{.Email}}</h2>
+              <p>Configure incoming and outgoing mail for this account.</p>
+            </div>
+            <nav class="account-settings-actions" aria-label="Settings for {{.Email}}">
+              <a class="button" href="{{.InboxURL}}">Open Inbox</a>
+              <a class="button" href="{{.IMAPURL}}">IMAP</a>
+              <a class="button" href="{{.SMTPURL}}">SMTP</a>
+            </nav>
+            <form class="account-delete" method="post" action="{{.DeleteURL}}">
+              <button class="button button-danger" type="submit">Delete account</button>
+            </form>
+          </article>
+        {{end}}
+      </div>
+    {{else}}
+      <div class="settings-empty">
+        <h2>No mail accounts</h2>
+        <p>Add an account to start reading and sending mail.</p>
+        <a class="button button-primary" href="/mail-accounts/new">Add mail account</a>
+      </div>
+    {{end}}
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "account-new-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "settings-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="settings-standalone settings-standalone-narrow" aria-labelledby="settings-title">
+    <a class="settings-back" href="/settings/mail-accounts">← Mail accounts</a>
+    <header class="settings-page-head"><div><p class="eyebrow">Settings</p><h1 id="settings-title">Add mail account</h1></div></header>
+    <form class="settings-form" method="post" action="/mail-accounts/create">
+      <div class="form-field">
+        <label for="email-address">Email address</label>
+        <input id="email-address" type="email" name="email_address" autocomplete="email" required>
+      </div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Save account</button></div>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "account-protocol-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "settings-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="settings-standalone settings-standalone-narrow" aria-labelledby="settings-title">
+    <a class="settings-back" href="/settings/mail-accounts">← Mail accounts</a>
+    <header class="settings-page-head">
+      <div><p class="eyebrow">{{.Protocol.Email}}</p><h1 id="settings-title">{{.Protocol.Name}} settings</h1></div>
+    </header>
+    <form class="settings-form" method="post" action="{{.Protocol.FormAction}}">
+      <div class="form-grid">
+        <div class="form-field form-field-wide">
+          <label for="protocol-host">Host</label>
+          <input id="protocol-host" name="{{if eq .Protocol.Name "IMAP"}}imap_host{{else}}smtp_host{{end}}" value="{{.Protocol.Host}}" required>
+        </div>
+        <div class="form-field">
+          <label for="protocol-port">Port</label>
+          <input id="protocol-port" type="number" min="1" max="65535" name="{{if eq .Protocol.Name "IMAP"}}imap_port{{else}}smtp_port{{end}}" value="{{.Protocol.Port}}" required>
+        </div>
+      </div>
+      <div class="form-field">
+        <label for="protocol-security">Security</label>
+        <select id="protocol-security" name="{{if eq .Protocol.Name "IMAP"}}imap_security{{else}}smtp_security{{end}}">
+          {{if eq .Protocol.Name "IMAP"}}
+            <option value="imaps"{{if or (eq .Protocol.Security "imaps") (eq .Protocol.Security "")}} selected{{end}}>IMAPS</option>
+            <option value="imap"{{if eq .Protocol.Security "imap"}} selected{{end}}>IMAP</option>
+          {{else}}
+            <option value="starttls"{{if eq .Protocol.Security "starttls"}} selected{{end}}>STARTTLS</option>
+            <option value="smtps"{{if eq .Protocol.Security "smtps"}} selected{{end}}>SMTPS</option>
+            <option value="plain"{{if or (eq .Protocol.Security "plain") (eq .Protocol.Security "")}} selected{{end}}>Plain</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="protocol-username">Username</label>
+        <input id="protocol-username" name="{{if eq .Protocol.Name "IMAP"}}imap_username{{else}}smtp_username{{end}}" value="{{.Protocol.Username}}" autocomplete="username" required>
+      </div>
+      <div class="form-field">
+        <label for="protocol-password">{{if .Protocol.HasConfig}}New password (optional){{else}}Password{{end}}</label>
+        <input id="protocol-password" type="password" name="{{if eq .Protocol.Name "IMAP"}}imap_password{{else}}smtp_password{{end}}" autocomplete="new-password"{{if not .Protocol.HasConfig}} required{{end}}>
+        {{if .Protocol.HasConfig}}<p class="form-help">Leave blank to keep the current password.</p>{{end}}
+      </div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Save {{.Protocol.Name}}</button></div>
+    </form>
+    {{if .Protocol.HasConfig}}
+      <section class="danger-zone" aria-labelledby="remove-protocol-title">
+        <div><h2 id="remove-protocol-title">Remove {{.Protocol.Name}}</h2><p>Mail account identity and other protocol settings will be kept.</p></div>
+        <form method="post" action="{{.Protocol.RemoveAction}}"><button class="button button-danger" type="submit">Remove {{.Protocol.Name}}</button></form>
+      </section>
+    {{end}}
+  </main>
+</body>
+</html>
+{{end}}

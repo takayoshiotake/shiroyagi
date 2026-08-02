@@ -2,14 +2,13 @@ package httpserver
 
 import (
 	"fmt"
-	"html"
 	"log"
 	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 
+	"github.com/takayoshiotake/shiroyagi/internal/auth"
 	"github.com/takayoshiotake/shiroyagi/internal/crypto"
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
@@ -53,7 +52,7 @@ func (s *Server) handleNewMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderMessageForm(w, account, composeMessageForm{Mode: composeModeNew})
+	renderMessageForm(w, session, account, composeMessageForm{Mode: composeModeNew})
 }
 
 func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +147,7 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	warning := s.applyComposeSideEffect(r, session.Subject, account, form)
-	renderComposeSent(w, account, original, form, warning)
+	renderComposeSent(w, session, account, original, form, warning)
 }
 
 func (s *Server) loadComposeOriginal(w http.ResponseWriter, r *http.Request, userID string, account mailaccount.Detail, form composeMessageForm) (mailimap.Message, bool) {
@@ -201,48 +200,8 @@ func (s *Server) applyComposeSideEffect(r *http.Request, userID string, account 
 	return ""
 }
 
-func renderComposeSent(w http.ResponseWriter, account mailaccount.Detail, original mailimap.Message, form composeMessageForm, warning string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>%s - Shiroyagi</title></head>
-<body>
-  <h1>%s</h1>
-  <p><strong>%s</strong> to <strong>%s</strong></p>`,
-		html.EscapeString(form.sentTitle()),
-		html.EscapeString(form.sentTitle()),
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(form.To),
-	)
-	if form.Cc != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p><strong>Cc</strong> %s</p>`, html.EscapeString(form.Cc))
-	}
-	if warning != "" {
-		_, _ = fmt.Fprintf(w, `
-  <p>%s</p>`, html.EscapeString(warning))
-	}
-	if form.requiresOriginal() {
-		_, _ = fmt.Fprintf(w, `
-  <p><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">Back to message</a></p>
-  <p><a href="/mail-accounts/%s/mailboxes/%s">Back to %s</a></p>`,
-			html.EscapeString(account.ID),
-			url.PathEscape(form.Mailbox),
-			original.UID,
-			html.EscapeString(account.ID),
-			url.PathEscape(form.Mailbox),
-			html.EscapeString(form.Mailbox),
-		)
-	} else {
-		_, _ = fmt.Fprintf(w, `
-  <p><a href="/mail-accounts/%s/send">Send another message</a></p>
-  <p><a href="/mail-accounts">Back</a></p>`,
-			html.EscapeString(account.ID),
-		)
-	}
-	_, _ = fmt.Fprint(w, `
-</body>
-</html>`)
+func renderComposeSent(w http.ResponseWriter, session auth.UserSession, account mailaccount.Detail, original mailimap.Message, form composeMessageForm, warning string) {
+	renderComposeStatus(w, sentStatusView(session, account, original, form, warning))
 }
 
 func (s *Server) smtpSenderAccount(userID string, account mailaccount.Detail) (mailsmtp.Account, error) {
@@ -350,71 +309,11 @@ func (form composeMessageForm) flagWarning() string {
 	}
 }
 
-func renderMessageForm(w http.ResponseWriter, account mailaccount.Detail, form composeMessageForm) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Compose message - Shiroyagi</title></head>
-<body>
-  <h1>Compose message</h1>
-
-  <p>
-    <strong>From</strong><br>
-    %s
-  </p>
-
-  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
-    <input type="hidden" name="mode" value="new">
-    <p>
-      <label>To<br>
-        <input type="email" name="to" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Subject<br>
-        <input name="subject" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Body<br>
-        <textarea name="body" rows="12" cols="72" required>%s</textarea>
-      </label>
-    </p>
-    <p>
-      <label>Attachments (up to 10 files, 25 MiB total)<br>
-        <input type="file" name="attachments" multiple>
-      </label>
-    </p>
-    <button type="submit">Send</button>
-  </form>
-
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(account.ID),
-		html.EscapeString(form.To),
-		html.EscapeString(form.Subject),
-		html.EscapeString(form.Body),
-	)
+func renderMessageForm(w http.ResponseWriter, session auth.UserSession, account mailaccount.Detail, form composeMessageForm) {
+	view := newComposePageView(session, account, "Compose message", "Send", mailboxURL(account.ID, defaultMailbox), form)
+	renderComposePage(w, view)
 }
 
 func renderSMTPError(w http.ResponseWriter, account mailaccount.Detail, message string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusBadGateway)
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>SMTP error - Shiroyagi</title></head>
-<body>
-  <h1>SMTP error</h1>
-  <p><strong>%s</strong></p>
-  <p>%s</p>
-  <p><a href="/mail-accounts/%s/smtp/edit">Edit SMTP</a></p>
-  <p><a href="/mail-accounts">Back</a></p>
-</body>
-</html>`,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(message),
-		html.EscapeString(account.ID),
-	)
+	renderProtocolError(w, "SMTP", account, message)
 }

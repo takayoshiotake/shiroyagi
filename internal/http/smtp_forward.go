@@ -1,14 +1,12 @@
 package httpserver
 
 import (
-	"fmt"
-	"html"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
+	"github.com/takayoshiotake/shiroyagi/internal/auth"
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
@@ -26,7 +24,8 @@ func (s *Server) handleNewForwardMessage(w http.ResponseWriter, r *http.Request)
 		Subject: forwardSubject(forwardContext.original.Subject),
 		Body:    forwardedBody(forwardContext.original),
 	}
-	renderForwardMessageForm(w, forwardContext.account, forwardContext.mailbox, forwardContext.original, form)
+	session, _ := sessionFromContext(r.Context())
+	renderForwardMessageForm(w, session, forwardContext.account, forwardContext.mailbox, forwardContext.original, form)
 }
 
 type forwardContext struct {
@@ -90,90 +89,12 @@ func (s *Server) loadForwardContext(w http.ResponseWriter, r *http.Request) (for
 	}, true
 }
 
-func renderForwardMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, form composeMessageForm) {
-	attachmentPolicy := "The original message has no attachments."
-	if len(original.Attachments) > 0 {
-		attachmentPolicy = fmt.Sprintf("The %d original attachment(s) will be included automatically.", len(original.Attachments))
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>Forward message - Shiroyagi</title></head>
-<body>
-  <p><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">Back to message</a></p>
-  <h1>Forward message</h1>
-
-  <p>
-    <strong>From</strong><br>
-    %s
-  </p>
-  <h2>Original message</h2>
-  <dl>
-    <dt>From</dt><dd>%s</dd>
-    <dt>To</dt><dd>%s</dd>
-    <dt>Cc</dt><dd>%s</dd>
-    <dt>Reply-To</dt><dd>%s</dd>
-    <dt>Date</dt><dd>%s</dd>
-    <dt>Message-ID</dt><dd>%s</dd>
-    <dt>In-Reply-To</dt><dd>%s</dd>
-    <dt>References</dt><dd>%s</dd>
-  </dl>
-
-  <p>%s</p>
-  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
-    <input type="hidden" name="mode" value="forward">
-    <input type="hidden" name="mailbox" value="%s">
-    <input type="hidden" name="uid" value="%d">
-    <p>
-      <label>To<br>
-        <input name="to" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Cc<br>
-        <input name="cc" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>Subject<br>
-        <input name="subject" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Body<br>
-        <textarea name="body" rows="18" cols="72" required>%s</textarea>
-      </label>
-    </p>
-    <p>
-      <label>Additional attachments (up to 10 files, 25 MiB total including originals)<br>
-        <input type="file" name="attachments" multiple>
-      </label>
-    </p>
-    <button type="submit">Send forward</button>
-  </form>
-</body>
-</html>`,
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		original.UID,
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(messageHeaderValue(original.From)),
-		html.EscapeString(messageHeaderValue(original.To)),
-		html.EscapeString(messageHeaderValue(original.Cc)),
-		html.EscapeString(messageHeaderValue(original.ReplyTo)),
-		html.EscapeString(formatIMAPTime(original.Date)),
-		html.EscapeString(messageHeaderValue(original.MessageID)),
-		html.EscapeString(messageHeaderValue(original.InReplyTo)),
-		html.EscapeString(messageHeaderValue(original.References)),
-		html.EscapeString(attachmentPolicy),
-		html.EscapeString(account.ID),
-		html.EscapeString(mailbox),
-		original.UID,
-		html.EscapeString(form.To),
-		html.EscapeString(form.Cc),
-		html.EscapeString(form.Subject),
-		html.EscapeString(form.Body),
-	)
+func renderForwardMessageForm(w http.ResponseWriter, session auth.UserSession, account mailaccount.Detail, mailbox string, original mailimap.Message, form composeMessageForm) {
+	view := newComposePageView(session, account, "Forward message", "Send forward", messageURL(account.ID, mailbox, original.UID), form)
+	originalView := newComposeOriginalView(original)
+	view.Original = &originalView
+	view.AttachmentHelp = attachmentHelpForForward(len(original.Attachments))
+	renderComposePage(w, view)
 }
 
 func forwardSubject(subject string) string {
