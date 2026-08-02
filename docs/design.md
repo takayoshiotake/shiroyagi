@@ -118,6 +118,12 @@ Standard pages use the shared application layout and contain, in order:
 Keep the content width readable and spacing consistent. Do not duplicate global
 navigation or page-level spacing in individual templates.
 
+Focused standard pages such as account settings, message composition, status,
+and error views use the minimal application header. Show the Shiroyagi identity
+and, for authenticated pages, the user menu with session-wide actions. Do not
+show mailbox or account-switching controls when they would distract from or
+discard the task in progress.
+
 ### Mail View
 
 The mail screen uses a three-pane layout:
@@ -133,6 +139,20 @@ navigating between views where practical.
 
 Each pane must handle its own loading, empty, and error state. A missing message
 selection is an empty state, not an application error.
+
+### Account Settings
+
+Account settings use a focused single-column standard page with a minimal
+application header containing the Shiroyagi identity and user menu for
+session-wide actions such as signing out. Do not carry over the mail view's
+account switcher, mailbox navigation, or three-pane structure: those elements
+describe the mail-reading workspace and would give misleading context in
+settings. Reuse its spacing, typography, forms, buttons, empty states, and
+responsive behavior instead.
+
+Keep account management at `/settings/mail-accounts`. `/mail-accounts` is the
+mail application entry point and opens an available Inbox; when no account is
+available, it leads to account setup instead.
 
 ## Components
 
@@ -215,3 +235,20 @@ When implementing a UI change, including the mail UI work in issue #13:
 - Keep application CSS in `static/css/app.css` and avoid introducing a frontend
   framework or build step without discussion.
 - Update this document when a new reusable pattern is introduced.
+
+## Reference Mockups
+
+Use [`mockup/mail.html`](mockup/mail.html) as the visual reference for the mail
+screen.
+
+The mockup defines the intended layout, spacing, visual hierarchy, colors, and
+responsive direction. It is not a functional specification.
+
+When implementing it:
+
+- Follow the principles in this document when the mockup is ambiguous.
+- Connect only actions supported by the application.
+- Do not add non-functional controls solely because they appear in a mockup.
+- Move styles into `static/css/app.css`; do not copy inline styles into templates.
+- Prefer actual application data and semantic HTML over reproducing placeholder
+  content exactly.

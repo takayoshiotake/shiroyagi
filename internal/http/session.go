@@ -17,6 +17,7 @@ func (s *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "private, no-store")
 		ctx := context.WithValue(r.Context(), sessionContextKey{}, session)
 		next(w, r.WithContext(ctx))
 	}

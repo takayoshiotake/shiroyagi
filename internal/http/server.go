@@ -2,7 +2,7 @@ package httpserver
 
 import (
 	"fmt"
-	"html"
+	"log"
 	"net/http"
 
 	"github.com/takayoshiotake/shiroyagi/internal/auth"
@@ -39,12 +39,15 @@ func New(authClient *auth.Client, sessions *auth.SessionStore, mailCrypto config
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /static/{path...}", handleStaticAsset)
 	mux.HandleFunc("GET /{$}", s.requireSession(s.handleIndex))
 
-	mux.HandleFunc("GET /mail-accounts", s.requireSession(s.handleListMailAccounts))
+	mux.HandleFunc("GET /mail-accounts", s.requireSession(s.handleMailEntry))
+	mux.HandleFunc("GET /settings/mail-accounts", s.requireSession(s.handleListMailAccounts))
 	mux.HandleFunc("GET /mail-accounts/new", s.requireSession(s.handleNewMailAccount))
 	mux.HandleFunc("POST /mail-accounts/create", s.requireSession(s.handleCreateMailAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/delete", s.requireSession(s.handleDeleteMailAccount))
+	mux.HandleFunc("GET /mail-accounts/{id}/delete", s.requireSession(s.handleConfirmDeleteMailAccount))
 	mux.HandleFunc("GET /mail-accounts/{id}/send", s.requireSession(s.handleNewMessage))
 	mux.HandleFunc("POST /mail-accounts/{id}/send", s.requireSession(s.handleSendMessage))
 	mux.HandleFunc("GET /mail-accounts/{id}/mailboxes/{mailbox}", s.requireSession(s.handleMailbox))
@@ -57,10 +60,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /mail-accounts/{id}/imap/edit", s.requireSession(s.handleEditIMAPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/imap/save", s.requireSession(s.handleSaveIMAPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/imap/delete", s.requireSession(s.handleDeleteIMAPAccount))
+	mux.HandleFunc("GET /mail-accounts/{id}/imap/delete", s.requireSession(s.handleConfirmDeleteIMAPAccount))
 
 	mux.HandleFunc("GET /mail-accounts/{id}/smtp/edit", s.requireSession(s.handleEditSMTPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/smtp/save", s.requireSession(s.handleSaveSMTPAccount))
 	mux.HandleFunc("POST /mail-accounts/{id}/smtp/delete", s.requireSession(s.handleDeleteSMTPAccount))
+	mux.HandleFunc("GET /mail-accounts/{id}/smtp/delete", s.requireSession(s.handleConfirmDeleteSMTPAccount))
 
 	mux.HandleFunc("GET /signin", s.handleSignIn)
 	mux.HandleFunc("GET /auth/login", s.handleAuthLogin)
@@ -73,30 +78,7 @@ func (s *Server) Routes() http.Handler {
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	session, _ := sessionFromContext(r.Context())
-
-	displayName := session.Name
-	if displayName == "" {
-		displayName = session.PreferredUsername
-	}
-	if displayName == "" {
-		displayName = session.Email
-	}
-	if displayName == "" {
-		displayName = session.Subject
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html lang="ja">
-<head><meta charset="utf-8"><title>Shiroyagi</title></head>
-<body>
-  <h1>Shiroyagi</h1>
-  <p>Signed in as %s</p>
-  <p><a href="/mail-accounts">Mail accounts</a></p>
-  <p><a href="/auth/logout">Sign out</a></p>
-</body>
-</html>`, html.EscapeString(displayName))
+	http.Redirect(w, r, "/mail-accounts", http.StatusFound)
 }
 
 func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
@@ -105,13 +87,8 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprint(w, `<!doctype html>
-<html lang="ja">
-<head><meta charset="utf-8"><title>Sign in - Shiroyagi</title></head>
-<body>
-  <h1>Shiroyagi</h1>
-  <p><a href="/auth/login">Sign in with Keycloak</a></p>
-</body>
-</html>`)
+	if err := renderUI(w, http.StatusOK, "sign-in-page", signInPageView{Title: "Sign in"}); err != nil {
+		log.Printf("render sign-in page: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }

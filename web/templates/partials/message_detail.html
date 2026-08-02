@@ -1,0 +1,83 @@
+{{define "message-empty"}}
+<article class="message-detail" id="message-detail" data-selected="false">
+  <div class="empty-panel">
+    <div><h2>No message selected</h2><p>Select a message from the list to read it.</p></div>
+  </div>
+</article>
+{{end}}
+
+{{define "message-detail"}}
+<article class="message-detail" id="message-detail" data-selected="true">
+  <div class="message-content">
+    <a class="mobile-back" href="{{.MailboxURL}}"
+       hx-get="{{.MailboxURL}}" hx-target="#message-detail"
+       hx-swap="outerHTML show:none" hx-push-url="{{.MailboxURL}}"
+       hx-include="#selected-message">← Back to messages</a>
+    <header class="message-detail-head">
+      <p class="eyebrow">{{.Selected.DisplayDate}}</p>
+      <h2>{{.Selected.Subject}}</h2>
+      <div class="message-from">
+        <span class="sender-avatar" aria-hidden="true">{{.Selected.SenderInitial}}</span>
+        <div>
+          <strong>{{.Selected.SenderName}}</strong>
+          <p>{{.Selected.SenderEmail}}</p>
+          <p>To: {{.Selected.To}}</p>
+        </div>
+      </div>
+      <details class="message-headers">
+        <summary>Message details</summary>
+        <dl>
+          <dt>Status</dt><dd>{{.Selected.Status}}</dd>
+          <dt>Cc</dt><dd>{{.Selected.Cc}}</dd>
+          <dt>Reply-To</dt><dd>{{.Selected.ReplyTo}}</dd>
+          <dt>Message-ID</dt><dd>{{.Selected.MessageID}}</dd>
+          <dt>In-Reply-To</dt><dd>{{.Selected.InReplyTo}}</dd>
+          <dt>References</dt><dd>{{.Selected.References}}</dd>
+        </dl>
+      </details>
+      {{if .Selected.Attachments}}
+        <section class="attachment-list" aria-labelledby="attachment-title">
+          <h3 id="attachment-title">Attachments</h3>
+          <ul>
+            {{range .Selected.Attachments}}
+              <li><a href="{{.URL}}">{{.Filename}}</a> <span class="attachment-meta">{{.ContentType}}, {{.Size}}</span></li>
+            {{end}}
+          </ul>
+        </section>
+      {{end}}
+    </header>
+    <div class="message-body">{{.Selected.Body}}</div>
+    <nav class="message-actions" aria-label="Message actions">
+      <a class="button" href="{{.Selected.ReplyURL}}">↩ Reply</a>
+      <a class="button" href="{{.Selected.ReplyAllURL}}">Reply all</a>
+      <a class="button" href="{{.Selected.ForwardURL}}">→ Forward</a>
+    </nav>
+  </div>
+</article>
+{{end}}
+
+{{define "message-detail-response"}}
+  <title>{{.Title}} - Shiroyagi</title>
+  {{template "message-detail" .}}
+  {{range .OOBRows}}{{template "message-row-oob" .}}{{end}}
+  <input type="hidden" id="selected-message" name="previous_uid" value="{{.SelectedUID}}" hx-swap-oob="outerHTML">
+{{end}}
+
+{{define "message-empty-response"}}
+  <title>{{.Title}} - Shiroyagi</title>
+  {{template "message-empty" .}}
+  {{range .OOBRows}}{{template "message-row-oob" .}}{{end}}
+  <input type="hidden" id="selected-message" name="previous_uid" value="0" hx-swap-oob="outerHTML">
+{{end}}
+
+{{define "message-panel-error"}}
+<article class="message-detail" id="message-detail" data-selected="false" role="alert">
+  <div class="panel-error"><div><h2>Could not load message</h2><p>{{.Error}}</p></div></div>
+</article>
+{{end}}
+
+{{define "message-list-error"}}
+<section class="message-list-panel" id="message-list-panel" role="alert">
+  <div class="panel-error"><div><h2>Could not load mailbox</h2><p>{{.Error}}</p></div></div>
+</section>
+{{end}}

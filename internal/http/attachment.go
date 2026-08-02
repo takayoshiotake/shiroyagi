@@ -3,19 +3,16 @@ package httpserver
 import (
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"log"
 	"mime"
 	"net/http"
-	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"unicode"
 
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
-	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 	mailsmtp "github.com/takayoshiotake/shiroyagi/internal/smtp"
 )
 
@@ -199,18 +196,4 @@ func smtpAttachments(attachments []mailimap.Attachment) []mailsmtp.Attachment {
 		})
 	}
 	return result
-}
-
-func renderAttachmentList(w http.ResponseWriter, account mailaccount.Detail, mailbox string, message mailimap.Message) {
-	if len(message.Attachments) == 0 {
-		return
-	}
-	_, _ = fmt.Fprint(w, "\n  <h2>Attachments</h2>\n  <ul>")
-	for _, attachment := range message.Attachments {
-		_, _ = fmt.Fprintf(w, `
-    <li><a href="/mail-accounts/%s/mailboxes/%s/messages/%d/attachments/%s">%s</a> (%s, %d bytes)</li>`,
-			html.EscapeString(account.ID), url.PathEscape(mailbox), message.UID, url.PathEscape(attachment.PartID),
-			html.EscapeString(displayAttachmentFilename(attachment.Filename)), html.EscapeString(attachment.ContentType), attachment.Size)
-	}
-	_, _ = fmt.Fprint(w, "\n  </ul>")
 }

@@ -1,15 +1,13 @@
 package httpserver
 
 import (
-	"fmt"
-	"html"
 	"log"
 	"net/http"
 	stdmail "net/mail"
-	"net/url"
 	"strconv"
 	"strings"
 
+	"github.com/takayoshiotake/shiroyagi/internal/auth"
 	mailimap "github.com/takayoshiotake/shiroyagi/internal/imap"
 	"github.com/takayoshiotake/shiroyagi/internal/mailaccount"
 )
@@ -40,7 +38,8 @@ func (s *Server) handleNewReply(w http.ResponseWriter, r *http.Request, mode rep
 		form.To, form.Cc = replyAllRecipients(replyContext.original, replyContext.account.EmailAddress)
 	}
 
-	renderReplyMessageForm(w, replyContext.account, replyContext.mailbox, replyContext.original, mode, form)
+	session, _ := sessionFromContext(r.Context())
+	renderReplyMessageForm(w, session, replyContext.account, replyContext.mailbox, replyContext.original, mode, form)
 }
 
 type replyMode string
@@ -55,13 +54,6 @@ func (mode replyMode) title() string {
 		return "Reply all"
 	}
 	return "Reply message"
-}
-
-func (mode replyMode) action() string {
-	if mode == replyModeReplyAll {
-		return "reply-all"
-	}
-	return "reply"
 }
 
 func (mode replyMode) submitLabel() string {
@@ -132,89 +124,12 @@ func (s *Server) loadReplyContext(w http.ResponseWriter, r *http.Request) (reply
 	}, true
 }
 
-func renderReplyMessageForm(w http.ResponseWriter, account mailaccount.Detail, mailbox string, original mailimap.Message, mode replyMode, form composeMessageForm) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `<!doctype html>
-<html>
-<head><title>%s - Shiroyagi</title></head>
-<body>
-  <p><a href="/mail-accounts/%s/mailboxes/%s/messages/%d">Back to message</a></p>
-  <h1>%s</h1>
-
-  <p>
-    <strong>From</strong><br>
-    %s
-  </p>
-  <h2>Original message</h2>
-  <dl>
-    <dt>From</dt><dd>%s</dd>
-    <dt>To</dt><dd>%s</dd>
-    <dt>Cc</dt><dd>%s</dd>
-    <dt>Reply-To</dt><dd>%s</dd>
-    <dt>Date</dt><dd>%s</dd>
-    <dt>Message-ID</dt><dd>%s</dd>
-    <dt>In-Reply-To</dt><dd>%s</dd>
-    <dt>References</dt><dd>%s</dd>
-  </dl>
-
-  <p>Original attachments are not included in replies.</p>
-  <form method="post" action="/mail-accounts/%s/send" enctype="multipart/form-data">
-    <input type="hidden" name="mode" value="%s">
-    <input type="hidden" name="mailbox" value="%s">
-    <input type="hidden" name="uid" value="%d">
-    <p>
-      <label>To<br>
-        <input name="to" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Cc<br>
-        <input name="cc" value="%s">
-      </label>
-    </p>
-    <p>
-      <label>Subject<br>
-        <input name="subject" value="%s" required>
-      </label>
-    </p>
-    <p>
-      <label>Body<br>
-        <textarea name="body" rows="16" cols="72" required>%s</textarea>
-      </label>
-    </p>
-    <p>
-      <label>Attachments (up to 10 files, 25 MiB total)<br>
-        <input type="file" name="attachments" multiple>
-      </label>
-    </p>
-    <button type="submit">%s</button>
-  </form>
-</body>
-</html>`,
-		html.EscapeString(mode.title()),
-		html.EscapeString(account.ID),
-		url.PathEscape(mailbox),
-		original.UID,
-		html.EscapeString(mode.title()),
-		html.EscapeString(account.EmailAddress),
-		html.EscapeString(messageHeaderValue(original.From)),
-		html.EscapeString(messageHeaderValue(original.To)),
-		html.EscapeString(messageHeaderValue(original.Cc)),
-		html.EscapeString(messageHeaderValue(original.ReplyTo)),
-		html.EscapeString(formatIMAPTime(original.Date)),
-		html.EscapeString(messageHeaderValue(original.MessageID)),
-		html.EscapeString(messageHeaderValue(original.InReplyTo)),
-		html.EscapeString(messageHeaderValue(original.References)),
-		html.EscapeString(account.ID),
-		html.EscapeString(mode.action()),
-		html.EscapeString(mailbox),
-		original.UID,
-		html.EscapeString(form.To),
-		html.EscapeString(form.Cc),
-		html.EscapeString(form.Subject),
-		html.EscapeString(form.Body),
-		html.EscapeString(mode.submitLabel()),
-	)
+func renderReplyMessageForm(w http.ResponseWriter, session auth.UserSession, account mailaccount.Detail, mailbox string, original mailimap.Message, mode replyMode, form composeMessageForm) {
+	view := newComposePageView(session, account, mode.title(), mode.submitLabel(), messageURL(account.ID, mailbox, original.UID), form)
+	originalView := newComposeOriginalView(original)
+	view.Original = &originalView
+	view.AttachmentHelp = "Original attachments are not included. You can add up to 10 files and 25 MiB total."
+	renderComposePage(w, view)
 }
 
 func replyRecipient(original mailimap.Message) string {

@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- All names, email addresses, organizations, and message contents in this mockup are fictional. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shiroyagi Mail UI Mockup</title>
+  <style>
+    :root{--page:#f7f8fa;--surface:#fff;--subtle:#f3f5f7;--text:#20242a;--soft:#606872;--faint:#8a929c;--line:#e3e7eb;--line2:#d3d8de;--accent:#35689a;--selected:#eaf2fa;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-14:56px;--radius-sm:4px;--radius-md:8px}
+    *{box-sizing:border-box}html,body{margin:0;min-width:320px;height:100%}body{background:var(--page);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP","Yu Gothic UI",sans-serif}
+    button{font:inherit}button,a,summary{outline-offset:2px}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #86b7e5}
+    .topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:grid;grid-template-columns:224px minmax(280px,420px) 1fr;gap:var(--space-6);align-items:center;padding:0 var(--space-6)}
+    .brand{display:flex;align-items:center;gap:var(--space-3);font-size:17px;font-weight:650}.mark{width:32px;height:32px;border-radius:var(--radius-md);background:#20242a;color:#fff;display:grid;place-items:center;font-size:13px}
+    .account{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3)}.help{width:24px;height:24px;border:1px solid var(--line2);border-radius:50%;background:#fff;color:var(--soft)}.user-menu{position:relative}.user-menu summary{list-style:none;cursor:pointer}.user-menu summary::-webkit-details-marker{display:none}.avatar{width:32px;height:32px;border-radius:50%;background:#e5e8eb;color:#464c54;display:grid;place-items:center;font-size:11px;font-weight:700}.user-menu[open] .avatar{box-shadow:0 0 0 2px var(--accent)}.user-menu-list{position:absolute;z-index:20;right:0;top:40px;width:168px;border:1px solid var(--line2);border-radius:var(--radius-md);background:#fff;box-shadow:0 8px 16px rgba(32,36,42,.14);padding:var(--space-1)}.user-menu-list a{display:block;border-radius:var(--radius-sm);color:var(--text);padding:var(--space-2) var(--space-3);text-decoration:none}.user-menu-list a:hover{background:var(--subtle)}
+    .layout{display:grid;grid-template-columns:224px 352px minmax(480px,1fr);height:calc(100vh - 64px);min-height:560px}
+    .folders{border-right:1px solid var(--line);padding:var(--space-5) var(--space-4) var(--space-4);display:flex;flex-direction:column}.account-switch{position:relative}.account-picker{position:relative}.account-picker summary{list-style:none;min-height:44px;border:1px solid var(--line2);border-radius:var(--radius-md);background:#fff;cursor:pointer;padding:var(--space-1) var(--space-8) var(--space-1) var(--space-3);position:relative}.account-picker summary::-webkit-details-marker{display:none}.account-picker summary:after{content:"";position:absolute;right:16px;top:16px;width:6px;height:6px;border-right:1.5px solid #737b84;border-bottom:1.5px solid #737b84;transform:rotate(45deg)}.account-picker[open] summary{border-color:var(--accent);border-radius:var(--radius-md) var(--radius-md) 0 0}.account-picker[open] summary:after{top:20px;transform:rotate(225deg)}.account-name{display:block;font-size:13px;font-weight:650;line-height:1.3}.account-email{display:block;margin-top:1px;color:var(--soft);font-size:11px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account-menu{position:absolute;z-index:10;left:0;right:0;top:100%;border:1px solid var(--accent);border-top:0;border-radius:0 0 var(--radius-md) var(--radius-md);background:#fff;box-shadow:0 4px 16px rgba(32,36,42,.12);overflow:hidden}.account-option{display:block;width:100%;border:0;border-top:1px solid var(--line);background:#fff;color:var(--text);cursor:pointer;padding:var(--space-2) var(--space-3);text-align:left}.account-option:hover{background:var(--subtle)}.account-option.current{background:var(--selected)}.compose{height:40px;margin:0 var(--space-1) var(--space-5);border:1px solid var(--accent);border-radius:var(--radius-md);background:var(--accent);color:#fff;font-weight:650}.folder{display:grid;grid-template-columns:20px 1fr auto;gap:var(--space-2);align-items:center;background:#e8ebee;border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font-weight:620}.folder b{font-size:12px}
+    .list{background:#fff;border-right:1px solid var(--line);overflow:auto}.list-head{display:flex;align-items:end;justify-content:space-between;padding:var(--space-6) var(--space-5) var(--space-3)}.eyebrow{margin:0 0 var(--space-1);color:var(--faint);font-size:11px;font-weight:650;letter-spacing:.04em}.list-head h1{font-size:22px;line-height:1.2;margin:0}.refresh{border:0;background:transparent;color:var(--soft);font-size:18px}.toolbar{display:flex;justify-content:space-between;color:var(--faint);font-size:12px;padding:0 var(--space-5) var(--space-3);border-bottom:1px solid var(--line)}.toolbar a{color:var(--accent)}
+    .messages{list-style:none;margin:0;padding:0}.messages li{border-bottom:1px solid var(--line)}.mail{display:block;min-height:104px;padding:var(--space-3) var(--space-4) var(--space-3) var(--space-5);color:inherit;text-decoration:none;position:relative}.mail.selected{background:var(--selected)}.mail.selected:before{content:"";position:absolute;left:0;top:0;width:4px;height:100%;background:var(--accent)}.meta{display:flex;justify-content:space-between;gap:var(--space-3)}.sender{font-size:13px}.meta time{font-size:11px;color:var(--faint)}.subject{margin:var(--space-1) 0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.unread .sender,.unread .subject{font-weight:700}.preview{margin:0;color:var(--soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .detail{background:#fff;overflow:auto}.reply button{height:32px;border:1px solid var(--line2);border-radius:var(--radius-md);background:#fff;color:var(--text);padding:0 var(--space-3)}.content{max-width:800px;margin:0 auto;padding:var(--space-10) var(--space-12) var(--space-14)}.message-head{position:relative;border-bottom:1px solid var(--line);padding:0 var(--space-10) var(--space-6) 0}.message-head h2{font-size:24px;line-height:1.45;letter-spacing:-.025em;margin:var(--space-1) 0 var(--space-6)}.more{position:absolute;top:0;right:0;width:32px;height:32px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--soft);cursor:pointer;font-size:20px;line-height:1}.more:hover{background:var(--subtle)}.from{display:flex;gap:var(--space-3)}.from-avatar{flex:0 0 40px;height:40px;border-radius:50%;background:#ece7e0;color:#675e54;display:grid;place-items:center;font-size:12px;font-weight:700}.from strong{display:block;font-size:13px}.from p{margin:0;color:var(--soft);font-size:12px}.body{font-size:15px;line-height:1.9;padding:28px 0 var(--space-8);color:#30363d}.body p{margin:0 0 var(--space-5)}.body ul{margin:-4px 0 var(--space-6);padding-left:var(--space-6)}.signature{color:var(--soft)}.reply{border-top:1px solid var(--line);padding-top:var(--space-6);display:flex;gap:var(--space-2)}
+    @media(max-width:900px){.topbar{grid-template-columns:auto minmax(168px,1fr) auto;gap:var(--space-3);padding:0 var(--space-4)}.brand span:last-child,.help{display:none}.account-picker summary{padding-left:var(--space-2)}.account-name{font-size:12px}.account{grid-column:3}.layout{display:block;height:auto}.folders,.list{display:none}.detail{min-height:calc(100vh - 64px)}.content{padding:28px var(--space-5) var(--space-10)}.message-head h2{font-size:21px}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">S</span><span>Shiroyagi</span></div>
+    <div class="account-switch">
+      <details class="account-picker">
+        <summary aria-label="Switch mail account">
+          <span class="account-name">Account A</span>
+          <span class="account-email">user-a@example.com</span>
+        </summary>
+        <div class="account-menu">
+          <button class="account-option current">
+            <span class="account-name">Account A</span>
+            <span class="account-email">user-a@example.com</span>
+          </button>
+          <button class="account-option">
+            <span class="account-name">Account B</span>
+            <span class="account-email">user-b@example.net</span>
+          </button>
+          <button class="account-option">
+            <span class="account-name">Account C</span>
+            <span class="account-email">user-c@example.org</span>
+          </button>
+        </div>
+      </details>
+    </div>
+    <div class="account">
+      <button class="help" aria-label="Help">?</button>
+      <details class="user-menu">
+        <summary class="avatar" aria-label="Open user menu">U</summary>
+        <nav class="user-menu-list" aria-label="User menu">
+          <a href="#">Mail accounts</a>
+          <a href="#">Settings</a>
+        </nav>
+      </details>
+    </div>
+  </header>
+  <main class="layout">
+    <aside class="folders" aria-label="Mailboxes">
+      <button class="compose">New message</button>
+      <div class="folder"><span>▰</span><span>Inbox</span><b>2</b></div>
+    </aside>
+    <section class="list" aria-labelledby="inbox">
+      <header class="list-head"><div><p class="eyebrow">Inbox</p><h1 id="inbox">Messages</h1></div><button class="refresh" aria-label="Refresh">↻</button></header>
+      <div class="toolbar"><span>6 messages</span><a href="#">Mark all as read</a></div>
+      <ol class="messages">
+        <li><a class="mail selected unread" href="#message" aria-current="true"><div class="meta"><span class="sender">Sample Sender A</span><time>10:42</time></div><p class="subject">Agenda for next week's project meeting</p><p class="preview">Hi there, I put together the agenda for next week's meeting…</p></a></li>
+        <li><a class="mail unread" href="#"><div class="meta"><span class="sender">Sample Finance Team</span><time>9:18</time></div><p class="subject">Monthly expense deadline</p><p class="preview">Please submit this month's expense report by Friday.</p></a></li>
+        <li><a class="mail" href="#"><div class="meta"><span class="sender">Sample Code Review Bot</span><time>Yesterday</time></div><p class="subject">[sample-project] Pull request #42</p><p class="preview">A new review was submitted on pull request #42.</p></a></li>
+        <li><a class="mail" href="#"><div class="meta"><span class="sender">Sample Sender B</span><time>Yesterday</time></div><p class="subject">Re: Development environment</p><p class="preview">Thanks for checking. Regarding the authentication settings…</p></a></li>
+        <li><a class="mail" href="#"><div class="meta"><span class="sender">Sample Identity Service</span><time>7/25</time></div><p class="subject">Account security notification</p><p class="preview">We noticed a new sign-in to your account.</p></a></li>
+      </ol>
+    </section>
+    <article class="detail" id="message">
+      <div class="content">
+        <header class="message-head">
+          <button class="more" type="button" aria-label="More actions">⋯</button>
+          <p class="eyebrow">Today, 10:42</p><h2>Agenda for next week's project meeting</h2>
+          <div class="from"><span class="from-avatar">A</span><div><strong>Sample Sender A</strong><p>sender-a@example.com</p><p>To: me</p></div></div>
+        </header>
+        <div class="body">
+          <p>Hi,</p>
+          <p>I put together the agenda for next week's project meeting:</p>
+          <ul><li>Development environment progress</li><li>Mail retrieval review</li><li>Priorities for the next sprint</li></ul>
+          <p>If there is anything else you would like to discuss, please let me know by the day before the meeting.</p>
+          <p class="signature">Best,<br>Sample Sender A<br>Sample Product Team</p>
+        </div>
+        <div class="reply"><button>↩ Reply</button><button>→ Forward</button></div>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

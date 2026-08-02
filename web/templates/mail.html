@@ -1,0 +1,26 @@
+{{define "mail-page"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"historyRestoreAsHxRequest":false,"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":true,"error":true},{"code":"...","swap":false}]}' >
+  <title>{{.Title}} - Shiroyagi</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body hx-history="false">
+  {{template "mail-topbar" .}}
+  <main class="mail-layout" aria-label="Mail" hx-indicator="#mail-loading">
+    {{template "mailbox-sidebar" .}}
+    {{template "message-list-panel" .}}
+    {{if .Selected}}
+      {{template "message-detail" .}}
+    {{else}}
+      {{template "message-empty" .}}
+    {{end}}
+  </main>
+  <div class="mail-loading htmx-indicator" id="mail-loading" role="status" aria-live="polite">Loading…</div>
+</body>
+</html>
+{{end}}

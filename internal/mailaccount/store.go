@@ -41,6 +41,7 @@ type Account struct {
 type Summary struct {
 	ID           string
 	EmailAddress string
+	HasIMAP      bool
 }
 
 type Detail struct {
@@ -99,10 +100,12 @@ WHERE user_id = $1 AND email_address = $2
 
 func (s *Store) ListSummaries(ctx context.Context, userID string) ([]Summary, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, email_address
-FROM mail_accounts
-WHERE user_id = $1
-ORDER BY email_address`,
+SELECT ma.id,
+       ma.email_address,
+       EXISTS (SELECT 1 FROM imap_accounts ia WHERE ia.mail_account_id = ma.id)
+FROM mail_accounts ma
+WHERE ma.user_id = $1
+ORDER BY ma.email_address`,
 		userID,
 	)
 	if err != nil {
@@ -113,7 +116,7 @@ ORDER BY email_address`,
 	var accounts []Summary
 	for rows.Next() {
 		var account Summary
-		if err := rows.Scan(&account.ID, &account.EmailAddress); err != nil {
+		if err := rows.Scan(&account.ID, &account.EmailAddress, &account.HasIMAP); err != nil {
 			return nil, fmt.Errorf("scan mail account: %w", err)
 		}
 		accounts = append(accounts, account)

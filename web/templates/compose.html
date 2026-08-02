@@ -1,0 +1,130 @@
+{{define "compose-head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} - Shiroyagi</title>
+<link rel="stylesheet" href="/static/css/app.css">
+{{end}}
+
+{{define "compose-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "compose-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="compose-standalone" aria-labelledby="compose-title">
+    <a class="settings-back" href="{{.BackURL}}">← Back</a>
+    <header class="compose-page-head">
+      <div><p class="eyebrow">From {{.From}}</p><h1 id="compose-title">{{.Heading}}</h1></div>
+    </header>
+    {{if .Original}}
+      <details class="original-message">
+        <summary>Original message details</summary>
+        <dl>
+          <dt>From</dt><dd>{{.Original.From}}</dd>
+          <dt>To</dt><dd>{{.Original.To}}</dd>
+          <dt>Cc</dt><dd>{{.Original.Cc}}</dd>
+          <dt>Reply-To</dt><dd>{{.Original.ReplyTo}}</dd>
+          <dt>Date</dt><dd>{{.Original.Date}}</dd>
+          <dt>Message-ID</dt><dd>{{.Original.MessageID}}</dd>
+          <dt>In-Reply-To</dt><dd>{{.Original.InReplyTo}}</dd>
+          <dt>References</dt><dd>{{.Original.References}}</dd>
+        </dl>
+      </details>
+    {{end}}
+    <form class="compose-form" method="post" action="{{.FormAction}}" enctype="multipart/form-data">
+      {{if .FormError}}<p class="form-error form-error-summary" role="alert">{{.FormError}}</p>{{end}}
+      <input type="hidden" name="mode" value="{{.Mode}}">
+      {{if .Mailbox}}<input type="hidden" name="mailbox" value="{{.Mailbox}}">{{end}}
+      {{if .UID}}<input type="hidden" name="uid" value="{{.UID}}">{{end}}
+      <div class="form-field">
+        <label for="compose-to">To</label>
+        <input id="compose-to" name="to" value="{{.To}}" autocomplete="email" required{{if index .Errors "to"}} aria-invalid="true" aria-describedby="compose-to-error"{{end}}>
+        {{with index .Errors "to"}}<p class="form-error" id="compose-to-error" role="alert">{{.}}</p>{{end}}
+      </div>
+      <div class="form-field">
+        <label for="compose-cc">Cc (optional)</label>
+        <input id="compose-cc" name="cc" value="{{.Cc}}">
+      </div>
+      <div class="form-field">
+        <label for="compose-subject">Subject</label>
+        <input id="compose-subject" name="subject" value="{{.Subject}}" required{{if index .Errors "subject"}} aria-invalid="true" aria-describedby="compose-subject-error"{{end}}>
+        {{with index .Errors "subject"}}<p class="form-error" id="compose-subject-error" role="alert">{{.}}</p>{{end}}
+      </div>
+      <div class="form-field">
+        <label for="compose-body">Message</label>
+        <textarea id="compose-body" name="body" rows="16" required{{if index .Errors "body"}} aria-invalid="true" aria-describedby="compose-body-error"{{end}}>{{.Body}}</textarea>
+        {{with index .Errors "body"}}<p class="form-error" id="compose-body-error" role="alert">{{.}}</p>{{end}}
+      </div>
+      <div class="form-field">
+        <label for="compose-attachments">Attachments (optional)</label>
+        <input id="compose-attachments" type="file" name="attachments" multiple>
+        <p class="form-help">{{.AttachmentHelp}}</p>
+        {{with index .Errors "attachments"}}<p class="form-error" role="alert">{{.}}</p>{{end}}
+      </div>
+      <div class="form-actions"><button class="button button-primary" type="submit">{{.SubmitLabel}}</button></div>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "compose-status-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "compose-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="status-standalone" aria-labelledby="status-title">
+    <section class="status-card">
+      <p class="status-mark" aria-hidden="true">✓</p>
+      <h1 id="status-title">{{.Heading}}</h1>
+      <p><strong>{{.From}}</strong> to <strong>{{.To}}</strong></p>
+      {{if .Cc}}<p><strong>Cc:</strong> {{.Cc}}</p>{{end}}
+      {{if .Warning}}<p class="status-warning" role="alert">{{.Warning}}</p>{{end}}
+      <div class="status-actions">
+        <a class="button button-primary" href="{{.PrimaryURL}}">{{.PrimaryLabel}}</a>
+        <a class="button" href="{{.SecondaryURL}}">{{.SecondaryLabel}}</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "protocol-error-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "compose-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="status-standalone" aria-labelledby="status-title">
+    <section class="status-card status-card-error" role="alert">
+      <p class="eyebrow">{{.AccountEmail}}</p>
+      <h1 id="status-title">{{.Heading}}</h1>
+      <p>{{.Message}}</p>
+      <div class="status-actions">
+        <a class="button button-primary" href="{{.EditURL}}">{{.EditLabel}}</a>
+        <a class="button" href="/settings/mail-accounts">Manage mail accounts</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "sign-in-page"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "compose-head" .}}</head>
+<body>
+  {{template "minimal-topbar" .}}
+  <main class="status-standalone" aria-labelledby="sign-in-title">
+    <section class="status-card">
+      <h1 id="sign-in-title">Sign in to Shiroyagi</h1>
+      <p>Use your organization account to continue.</p>
+      <div class="status-actions"><a class="button button-primary" href="/auth/login">Sign in with Keycloak</a></div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

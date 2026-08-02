@@ -1,0 +1,44 @@
+{{define "mail-topbar"}}
+<header class="topbar">
+  <a class="brand" href="/mail-accounts" aria-label="Shiroyagi mail">
+    <span class="brand-mark" aria-hidden="true">S</span>
+    <span class="brand-label">Shiroyagi</span>
+  </a>
+  <div class="account-switch">
+    <details class="account-picker">
+      <summary aria-label="Switch mail account">
+        <span class="account-name">{{.CurrentAccount.Name}}</span>
+        <span class="account-email">{{.CurrentAccount.Email}}</span>
+      </summary>
+      <nav class="account-menu" aria-label="Mail accounts">
+        {{range .Accounts}}
+          <a class="account-option" href="{{.InboxURL}}"{{if .Current}} aria-current="true"{{end}}>
+            <span class="account-name">{{.Name}}</span>
+            <span class="account-email">{{.Email}}</span>
+          </a>
+        {{end}}
+      </nav>
+    </details>
+  </div>
+  <div class="topbar-account">
+    <details class="user-menu">
+      <summary class="avatar" aria-label="Open user menu">{{.User.Initial}}</summary>
+      <nav class="user-menu-list" aria-label="User menu">
+        <a href="/settings/mail-accounts">Manage mail accounts</a>
+        <a href="/auth/logout">Sign out</a>
+      </nav>
+    </details>
+  </div>
+</header>
+{{end}}
+
+{{define "mailbox-sidebar"}}
+<aside class="mailboxes" aria-label="Mailboxes">
+  <a class="compose-link" href="{{.CurrentAccount.ComposeURL}}">New message</a>
+  <a class="mailbox-link" href="{{.MailboxURL}}" aria-current="page">
+    <span aria-hidden="true">▰</span>
+    <span>Inbox</span>
+    <span>{{len .Messages}}</span>
+  </a>
+</aside>
+{{end}}
