@@ -12,6 +12,11 @@ Web
   └── Stalwart (IMAP and SMTP, local delivery for example.test)
 ```
 
+The development Compose profiles add Dovecot for IMAP compatibility checks
+and Mailpit for inspecting sent messages. See the
+[optional mail services](../README.md#optional-mail-services) for connection
+settings.
+
 ## Production
 
 ```text

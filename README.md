@@ -85,7 +85,7 @@ http://localhost:8080/signin
 ### Development mail
 
 When upgrading an existing development stack from Dovecot and Mailpit, run
-`podman compose -f compose.yaml -f compose.dev.yaml down --remove-orphans`
+`podman compose -f compose.yaml -f compose.dev.yaml --profile dovecot --profile mailpit down --remove-orphans`
 before starting it again. This frees the old mail ports and keeps the volumes.
 
 Stalwart creates the `example.test` domain and test accounts on first start.
@@ -180,6 +180,31 @@ are limited to 50 MiB, individual decoded attachments to 25 MiB, MIME nesting
 to 10 levels, and MIME part count to 100. Downloads always use attachment
 disposition, disable content sniffing, and use a sanitized filename; the
 original filename remains visible on the message page.
+
+### Optional mail services
+
+Use Dovecot for IMAP compatibility checks and Mailpit for inspecting SMTP
+messages. Each service can run alongside Stalwart.
+
+```bash
+podman compose -f compose.yaml -f compose.dev.yaml --profile dovecot up -d dovecot
+podman compose -f compose.yaml -f compose.dev.yaml --profile mailpit up -d mailpit
+```
+
+| Service | Shiroyagi in Compose | Shiroyagi on the host | Connection mode |
+| --- | --- | --- | --- |
+| Dovecot IMAP | `dovecot:31143` | `localhost:2144` | `IMAP` |
+| Mailpit SMTP | `mailpit:1025` | `localhost:1026` | `Plain` |
+
+Both work with `dev@example.test` and the development password above.
+Dovecot's seed service copies the shared fixtures into the inbox in the
+`dovecot_test_data` volume. It checks both new and previously opened files
+when seeding again.
+
+To inspect a message in Mailpit, set the mail account's SMTP connection to
+Mailpit, send from Shiroyagi and open http://localhost:8025. Set SMTP back to
+Stalwart for local delivery checks. The host ports for both optional services
+bind to IPv4 loopback.
 
 ## Build
 

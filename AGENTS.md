@@ -13,6 +13,7 @@ Self-hosted webmail application for on-premise mail servers.
 - PostgreSQL
 - OIDC / Keycloak
 - Stalwart for development IMAP and SMTP
+- Optional Dovecot for IMAP compatibility checks and Mailpit for SMTP inspection
 
 ## Development
 

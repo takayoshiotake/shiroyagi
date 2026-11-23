@@ -52,5 +52,44 @@ services:
       start_period: 30s
       retries: 45
 
+  dovecot:
+    image: docker.io/dovecot/dovecot:2.4.5
+    profiles: [dovecot]
+    depends_on:
+      dovecot-seed:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:2144:31143"
+    volumes:
+      - dovecot_test_data:/srv/vmail
+      - ./dev/dovecot/dovecot.conf:/etc/dovecot/dovecot.conf:ro
+      - ./dev/dovecot/users:/etc/dovecot/users:ro
+    networks:
+      - app
+
+  dovecot-seed:
+    image: docker.io/library/alpine:3.23
+    profiles: [dovecot]
+    command: ["/bin/sh", "/seed.sh"]
+    volumes:
+      - dovecot_test_data:/srv/vmail
+      - ./dev/dovecot/seed.sh:/seed.sh:ro
+      - ./dev/stalwart/fixtures:/fixtures:ro
+    networks:
+      - app
+
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.34.0
+    profiles: [mailpit]
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8025:8025"
+    networks:
+      - app
+
 volumes:
   stalwart_data:
+  dovecot_test_data:
