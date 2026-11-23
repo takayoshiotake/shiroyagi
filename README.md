@@ -88,11 +88,16 @@ When upgrading an existing development stack from Dovecot and Mailpit, run
 `podman compose -f compose.yaml -f compose.dev.yaml --profile dovecot --profile mailpit down --remove-orphans`
 before starting it again. This frees the old mail ports and keeps the volumes.
 
-Stalwart creates the `example.test` domain and test accounts on first start.
-It adds the messages in `dev/stalwart/fixtures` to the `dev@example.test`
+On first start, the Shiroyagi development setup registers `example.test` as
+a local mail domain in Stalwart and creates the test accounts.
+Stalwart delivers mail to those accounts internally without an MX lookup and
+rejects external recipients. You can use addresses such as `alice@example.test`
+without adding DNS records or `hosts` entries. Use the server hostnames in the
+table below for IMAP and SMTP connections.
+
+The setup adds the messages in `dev/stalwart/fixtures` to the `dev@example.test`
 inbox, checking their Message-IDs so restarting does not add duplicates. The
-`stalwart_data` volume retains the accounts and messages. Stalwart accepts
-delivery to its local test mailboxes and rejects external recipients.
+`stalwart_data` volume retains the accounts and messages.
 
 Sign in to Shiroyagi and create a mail account for `dev@example.test` under
 `Mail accounts`. Use the email address as the IMAP and SMTP username and
