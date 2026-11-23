@@ -1,8 +1,12 @@
 services:
   web:
     depends_on:
-      - postgres
-      - keycloak
+      postgres:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      stalwart:
+        condition: service_healthy
     environment:
       IMAP_ALLOW_INSECURE_AUTH: "true"
       SMTP_ALLOW_INSECURE_AUTH: "true"
@@ -32,44 +36,60 @@ services:
         aliases:
           - keycloak.localhost
 
+  stalwart:
+    build: ./dev/stalwart
+    ports:
+      - "127.0.0.1:2143:31143"
+      - "127.0.0.1:1025:1025"
+    volumes:
+      - stalwart_data:/var/lib/stalwart
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/shiroyagi-stalwart-ready"]
+      interval: 2s
+      timeout: 2s
+      start_period: 30s
+      retries: 45
+
   dovecot:
-    image: dovecot/dovecot:latest
+    image: docker.io/dovecot/dovecot:2.4.5
+    profiles: [dovecot]
     depends_on:
       dovecot-seed:
         condition: service_completed_successfully
     ports:
-      - "2143:31143"
+      - "127.0.0.1:2144:31143"
     volumes:
-      - dovecot_data:/srv/mail
-      - ./dev/dovecot:/etc/dovecot:ro
+      - dovecot_test_data:/srv/vmail
+      - ./dev/dovecot/dovecot.conf:/etc/dovecot/dovecot.conf:ro
+      - ./dev/dovecot/users:/etc/dovecot/users:ro
     networks:
       - app
 
   dovecot-seed:
-    image: alpine:latest
-    command:
-      - sh
-      - -c
-      - |
-        mkdir -p /srv/mail/dev@example.test/Maildir/cur /srv/mail/dev@example.test/Maildir/new /srv/mail/dev@example.test/Maildir/tmp
-        cp -n /fixtures/dev@example.test/Maildir/new/* /srv/mail/dev@example.test/Maildir/new/ 2>/dev/null || true
-        chmod -R 0777 /srv/mail
+    image: docker.io/library/alpine:3.23
+    profiles: [dovecot]
+    command: ["/bin/sh", "/seed.sh"]
     volumes:
-      - dovecot_data:/srv/mail
-      - ./dev/dovecot/fixtures:/fixtures:ro
+      - dovecot_test_data:/srv/vmail
+      - ./dev/dovecot/seed.sh:/seed.sh:ro
+      - ./dev/stalwart/fixtures:/fixtures:ro
     networks:
       - app
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: docker.io/axllent/mailpit:v1.34.0
+    profiles: [mailpit]
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8025:8025"
     networks:
       - app
 
 volumes:
-  dovecot_data:
+  stalwart_data:
+  dovecot_test_data:

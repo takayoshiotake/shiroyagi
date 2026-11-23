@@ -66,18 +66,15 @@ Then run the Go application on the host.
 flowchart LR
   browser[Browser] --> web[Shiroyagi :8080]
   web --> postgres[(PostgreSQL)]
-  web --> dovecot[Dovecot IMAP]
-  web --> mailpit[Mailpit SMTP]
+  web --> stalwart[Stalwart IMAP and SMTP]
   web --> keycloak[Keycloak OIDC :8081]
   browser --> keycloak
-  browser --> mailpitUI[Mailpit UI :8025]
 ```
 
 URLs:
 
 - Web: http://localhost:8080
 - Keycloak: http://keycloak.localhost:8081
-- Mailpit: http://localhost:8025
 
 Login check:
 
@@ -85,113 +82,97 @@ Login check:
 http://localhost:8080/signin
 ```
 
-IMAP check:
+### Development mail
 
-1. Sign in and open `Mail accounts`.
-2. Create a mail account.
-3. Open `IMAP` for that account and save the IMAP connection settings.
-   Use `dev@example.test` as the email address and IMAP username. Use `dev` as
-   the IMAP password.
-   When the Go app is run locally against the development services, use
-   `localhost`, port `2143`, and protocol `IMAP` for the development Dovecot
-   service. When the app runs in compose, use `dovecot`, port `31143`, and
-   protocol `IMAP`. The compose development environment sets
-   `IMAP_ALLOW_INSECURE_AUTH=true` so Dovecot can accept LOGIN over the
-   non-TLS `IMAP` connection.
-4. Open `Inbox` from the mail account list.
+When upgrading an existing development stack from Dovecot and Mailpit, run
+`podman compose -f compose.yaml -f compose.dev.yaml --profile dovecot --profile mailpit down --remove-orphans`
+before starting it again. This frees the old mail ports and keeps the volumes.
 
-The first IMAP link opens `INBOX` and fetches the latest 100 messages.
-Opening a message fetches and displays its inline text body.
+Stalwart creates the `example.test` domain and test accounts on first start.
+It adds the messages in `dev/stalwart/fixtures` to the `dev@example.test`
+inbox, checking their Message-IDs so restarting does not add duplicates. The
+`stalwart_data` volume retains the accounts and messages. Stalwart accepts
+delivery to its local test mailboxes and rejects external recipients.
 
-SMTP check:
+Sign in to Shiroyagi and create a mail account for `dev@example.test` under
+`Mail accounts`. Use the email address as the IMAP and SMTP username and
+`shiroyagi-dev` for both passwords. Update saved development mail accounts
+with the following settings.
 
-1. Sign in and open `Mail accounts`.
-2. Create or reuse a mail account.
-3. Open `SMTP` for that account and save the SMTP connection settings.
-   Use protocol `Plain`, SMTP username `dev@example.test`, and SMTP password
-   `dev`.
-   When the Go app is run locally against the development services, use
-   `localhost` and port `1025`. When the app runs in compose, use `mailpit`
-   and port `1025`. The compose development environment sets
-   `SMTP_ALLOW_INSECURE_AUTH=true` so Mailpit can accept SMTP AUTH over the
-   non-TLS `Plain` connection.
-4. Open `Send` from the mail account list.
-5. Enter a recipient, subject, and body, then send the message.
-6. Open Mailpit at http://localhost:8025 and confirm the message.
+| Shiroyagi runs in | IMAP host and port | IMAP protocol | SMTP host and port | SMTP protocol |
+| --- | --- | --- | --- | --- |
+| Compose | `stalwart:31143` | `IMAP` | `stalwart:1025` | `Plain` |
+| Host | `localhost:2143` | `IMAP` | `localhost:1025` | `Plain` |
 
-Reply check:
+The host ports bind to IPv4 loopback. The development Compose environment
+allows authentication on its non-TLS IMAP and SMTP connections.
 
-1. Configure both IMAP and SMTP for the same mail account.
-2. Open `Inbox` from the mail account list.
-3. Open a fixture message and click `Reply`.
-4. Confirm that `To` is prefilled from `Reply-To` or `From`, and that the
-   subject is prefixed with `Re:`.
-5. Send the reply.
-6. Open Mailpit at http://localhost:8025 and confirm that the message has
-   `In-Reply-To` and `References` headers for the original message.
-7. Confirm that the original message has the IMAP `\Answered` flag:
+The other test mailboxes are `alice`, `bob`, `carol`, `notifications` and
+`ops` at `example.test`. They use the same development password. Add a second
+mail account in Shiroyagi with the recipient's address and IMAP settings to
+check delivery. To inspect raw headers or MIME structure, open the recipient
+mailbox with an IMAP client such as Thunderbird and view the message source.
 
-   ```bash
-   podman compose -f compose.yaml -f compose.dev.yaml exec dovecot \
-     doveadm fetch -u dev@example.test 'uid flags hdr.message-id' mailbox INBOX all
-   ```
+If you change the fixtures, rebuild the Stalwart image with
+`podman compose -f compose.yaml -f compose.dev.yaml up -d --build stalwart`.
+To add a new fixture to an existing inbox, give it a unique Message-ID.
 
-   The replied message should include `\Answered` in its `flags` output.
-   The Shiroyagi inbox list should also show `Replied` in the message status
-   column.
+#### IMAP check
 
-Reply all check:
+1. Open `Inbox` for `dev@example.test` from the mail account list.
+2. Confirm that the fixture messages are listed and that opening one displays
+   its inline text body.
 
-1. Open the `Reply all fixture` message in `Inbox` and click `Reply all`.
-2. On the message detail page, confirm that the original `To` and `Cc`
-   headers are visible.
-3. Confirm that the reply form `To` is `alice@example.test`.
-4. Confirm that the reply form `Cc` is `bob@example.test, carol@example.test`.
-5. Send the reply and confirm it in Mailpit.
+The inbox shows up to the latest 100 messages.
 
-If an existing Dovecot development volume was created before the fixture was
-added, recreate or reseed the volume so the new fixture message is copied.
+#### SMTP check
 
-After a reply is sent, Shiroyagi attempts to add the IMAP `\Answered` flag to
-the original message. If the SMTP send succeeds but flag update fails, the
-reply remains sent and the result page shows a warning.
+1. Open `Send` for `dev@example.test`.
+2. Send a message to `alice@example.test`.
+3. Open Alice's inbox and confirm that the subject and body match.
 
-Forward check:
+#### Reply check
 
-1. Configure both IMAP and SMTP for the same mail account.
-2. Open the `Forward fixture` message in `Inbox` and click `Forward`.
-3. Confirm that the subject is prefixed with `Fwd:` and the body includes the
-   forwarded message header and original text body.
-4. Enter a recipient and send the forward.
-5. Open Mailpit at http://localhost:8025 and confirm the forwarded message.
-6. Confirm that the original message has the IMAP `$Forwarded` flag:
+1. Open `Welcome to Shiroyagi` in the dev inbox and click `Reply`.
+2. Confirm that `To` is prefilled from `Reply-To` or `From` and that the subject
+   is prefixed with `Re:`.
+3. Send the reply. Confirm in Alice's received message that `In-Reply-To` and
+   `References` contain the original Message-ID.
+4. Confirm that the original message appears as `Replied` in the dev inbox,
+   reflecting its IMAP `\Answered` flag.
 
-   ```bash
-   podman compose -f compose.yaml -f compose.dev.yaml exec dovecot \
-     doveadm fetch -u dev@example.test 'uid flags hdr.message-id hdr.subject' mailbox INBOX all
-   ```
+#### Reply all check
 
-   The original fixture message should include `$Forwarded` in its `flags`
-   output. The Shiroyagi inbox list should also show `Forwarded` in the
-   message status column. `$Forwarded` is an IMAP keyword and depends on server
-   support; if the SMTP send succeeds but the flag update fails, the forward
-   remains sent and the result page shows a warning.
+1. Open `Reply all fixture` in the dev inbox and check that the original
+   `To` and `Cc` headers are visible.
+2. Click `Reply all`. Confirm that `To` is `alice@example.test` and `Cc` is
+   `bob@example.test, carol@example.test`.
+3. Send the reply and verify delivery in all three recipients' inboxes.
 
-Attachment check:
+#### Forward check
 
-1. Recreate or reseed the Dovecot development volume so the `Attachment
-   fixture` message is available.
-2. Open that message and confirm that `../original-report.txt` is shown as the
-   original attachment name.
-3. Download it and confirm that the browser is offered `original-report.txt`
-   and that the file contains `This is the attachment fixture.`
-4. Open `Send`, attach one or more files, and send the message. Confirm in
-   Mailpit that the message is `multipart/mixed` and the files are attached.
-5. Reply to the attachment fixture and confirm that the original attachment is
-   not included automatically. Files selected in the reply form are included.
-6. Forward the attachment fixture and confirm in Mailpit that its original
-   attachment is included. Additional files selected in the forward form are
-   included as well.
+1. Open `Forward fixture` in the dev inbox and click `Forward`.
+2. Confirm that the subject is prefixed with `Fwd:` and that the body shows the
+   original message headers and text.
+3. Forward the message to `alice@example.test` and check Alice's inbox.
+4. Confirm that the original message appears as `Forwarded` in the dev inbox,
+   reflecting its IMAP `$Forwarded` keyword.
+
+If SMTP sending succeeds but a reply or forward flag update fails, the
+message remains sent and the result page shows a warning.
+
+#### Attachment check
+
+1. Open `Attachment fixture` in the dev inbox. Confirm the original attachment
+   name is shown as `../original-report.txt`.
+2. Download it and confirm that the browser offers `original-report.txt` and
+   that the file contains `This is the attachment fixture.`
+3. Open `Send`, attach a file and send it to `alice@example.test`. Confirm in
+   Alice's received message that it is attached as part of `multipart/mixed`.
+4. Reply to the attachment fixture and confirm that only files selected in
+   the reply form are attached.
+5. Forward the attachment fixture and confirm that the original attachment
+   and any additional files selected in the forward form are included.
 
 Shiroyagi treats attachments as opaque bytes: it does not preview, execute, or
 extract them. Uploads allow at most 10 files and 25 MiB total. Received messages
@@ -199,6 +180,31 @@ are limited to 50 MiB, individual decoded attachments to 25 MiB, MIME nesting
 to 10 levels, and MIME part count to 100. Downloads always use attachment
 disposition, disable content sniffing, and use a sanitized filename; the
 original filename remains visible on the message page.
+
+### Optional mail services
+
+Use Dovecot for IMAP compatibility checks and Mailpit for inspecting SMTP
+messages. Each service can run alongside Stalwart.
+
+```bash
+podman compose -f compose.yaml -f compose.dev.yaml --profile dovecot up -d dovecot
+podman compose -f compose.yaml -f compose.dev.yaml --profile mailpit up -d mailpit
+```
+
+| Service | Shiroyagi in Compose | Shiroyagi on the host | Connection mode |
+| --- | --- | --- | --- |
+| Dovecot IMAP | `dovecot:31143` | `localhost:2144` | `IMAP` |
+| Mailpit SMTP | `mailpit:1025` | `localhost:1026` | `Plain` |
+
+Both work with `dev@example.test` and the development password above.
+Dovecot's seed service copies the shared fixtures into the inbox in the
+`dovecot_test_data` volume. It checks both new and previously opened files
+when seeding again.
+
+To inspect a message in Mailpit, set the mail account's SMTP connection to
+Mailpit, send from Shiroyagi and open http://localhost:8025. Set SMTP back to
+Stalwart for local delivery checks. The host ports for both optional services
+bind to IPv4 loopback.
 
 ## Build
 

@@ -1,37 +1,11 @@
 # SMTP
 
-Development uses Mailpit.
-
-Postfix is not required initially.
-
 ## Development check
 
-Use Mailpit as the SMTP server during development.
-
-When the Go application runs on the host:
-
-```text
-Host: localhost
-Port: 1025
-Protocol: Plain
-Username: dev@example.test
-Password: dev
-```
-
-When the Go application runs in compose:
-
-```text
-Host: mailpit
-Port: 1025
-Protocol: Plain
-Username: dev@example.test
-Password: dev
-```
-
-After saving the SMTP settings for a mail account, open `Send` from the
-mail account list, enter a recipient, subject, and body, then send the message.
-The sent message should appear in the Mailpit Web UI at
-http://localhost:8025.
+Use the [development mail settings](../README.md#development-mail) to configure
+authenticated SMTP submission to Stalwart. Send to a local test address such as
+`alice@example.test`, then open the recipient's inbox over IMAP to verify
+delivery. Stalwart rejects external recipients in this environment.
 
 Messages with attachments are sent as `multipart/mixed`, with attachments
 base64 encoded and marked with attachment disposition. A compose request may
@@ -42,7 +16,7 @@ the forward form.
 
 ## Security modes
 
-- `Plain` connects without TLS. This is intended for the development Mailpit
+- `Plain` connects without TLS. This is intended for the development Stalwart
   service or for deployments where TLS is terminated before Shiroyagi reaches
   the SMTP server. SMTP AUTH over this mode is rejected by default unless the
   server is reached as `localhost`. Set `SMTP_ALLOW_INSECURE_AUTH=true` to
@@ -51,6 +25,5 @@ the forward form.
   advertise and complete STARTTLS before authentication or message submission.
 - `SMTPS` connects with TLS from the start.
 
-SMTP authentication is required by Shiroyagi. The development Mailpit service is
-configured to accept SMTP AUTH for any username and password so the authenticated
-send path can be verified locally.
+SMTP authentication is required by Shiroyagi. Stalwart verifies the credentials
+of the test account configured for SMTP.
