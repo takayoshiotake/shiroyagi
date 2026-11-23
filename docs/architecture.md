@@ -5,13 +5,11 @@
 ```text
 Browser
   ├── http://localhost:8080 -> Web
-  ├── http://keycloak.localhost:8081 -> Keycloak
-  └── http://localhost:8025 -> Mailpit UI
+  └── http://keycloak.localhost:8081 -> Keycloak
 
 Web
   ├── PostgreSQL
-  ├── Dovecot   (IMAPS)
-  └── Mailpit   (SMTP)
+  └── Stalwart (IMAP and SMTP, local delivery for example.test)
 ```
 
 ## Production
